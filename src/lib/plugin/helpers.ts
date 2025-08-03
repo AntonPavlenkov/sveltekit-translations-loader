@@ -56,7 +56,6 @@ export function resolveTranslationKeys(
 
 	return resolvedKeys;
 }
-
 /**
  * Transform translation code based on locale and translations
  */

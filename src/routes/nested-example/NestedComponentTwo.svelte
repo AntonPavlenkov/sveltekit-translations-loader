@@ -1,9 +1,9 @@
 <script lang="ts">
 	import * as t from '@sveltekit-translations-loader';
-
-	let { data } = $props();
-
-	console.log('🚀 ~ da  t   a :', data);
 </script>
 
-{t.zap()}
+<div>
+	<h3>Nested Component Two</h3>
+	<p>{t.hello()}</p>
+	<p>{t.zap()}</p>
+</div>

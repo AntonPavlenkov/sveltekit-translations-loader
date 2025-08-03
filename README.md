@@ -1,203 +1,193 @@
-# 🌐 SvelteKit Translations Importer
+# SvelteKit Translations Loader
 
-A tree-shakable, TypeScript-first translations library for Svelte 5 with Vite plugin support.
+A powerful translation system for SvelteKit with automatic type generation and runtime injection. Built on top of Paraglide.js for optimal performance and developer experience.
 
-## ✨ Features
+## Features
 
-- **🌳 Fully Tree-shakable**: Import only the translation functions you use
-- **⚡ Vite Plugin**: Automatic code generation with hot module replacement
-- **🎯 TypeScript First**: Full type safety and intellisense support
-- **🔧 Parameter Interpolation**: Dynamic value replacement with `{{key}}` syntax
-- **🏗️ Build-time Generation**: Zero runtime overhead
-- **📦 Multiple Import Patterns**: Use default export or individual imports
-- **🔄 Automatic Key Conversion**: Kebab-case keys become camelCase functions
+- 🚀 **Automatic Type Generation**: Generate TypeScript types from your translation files
+- 🔧 **Vite Plugin**: Seamless integration with SvelteKit's build process
+- 🎯 **Runtime Injection**: Inject translations at runtime with full type safety
+- 📦 **Zero Bundle Size**: Leverages Paraglide.js for optimal performance
+- 🔄 **Hot Reload**: Automatic reloading during development
+- 🛡️ **Type Safety**: Full TypeScript support with generated types
 
-## 🚀 Quick Start
-
-### Installation
+## Installation
 
 ```bash
 npm install sveltekit-translations-loader
 ```
 
-### Setup
+## Quick Start
 
-1. **Configure your Vite plugin** in `vite.config.ts`:
+### 1. Set up your translation files
+
+Create your translation files in a structured format:
 
 ```typescript
-import { sveltekitTranslationsImporterPlugin } from 'sveltekit-translations-loader';
+// src/types/translations/messages/hello.ts
+export default {
+  en: "Hello",
+  es: "Hola",
+  fr: "Bonjour"
+};
+```
+
+### 2. Configure the Vite plugin
+
+```typescript
+// vite.config.ts
+import { sveltekit } from '@sveltejs/kit/vite';
+import { sveltekitTranslationsImporterPlugin } from 'sveltekit-translations-loader/plugin';
 
 export default defineConfig({
-	plugins: [
-		sveltekitTranslationsImporterPlugin({
-			defaultPath: 'src/lib/default-translations.ts',
-			runtimePath: 'src/lib/transhake/tGetter.ts'
-		})
-	]
+  plugins: [
+    sveltekit(),
+    sveltekitTranslationsImporterPlugin({
+      translationsDir: 'src/types/translations',
+      outputDir: 'src/types/generated'
+    })
+  ]
 });
 ```
 
-2. **Create your default translations** in `src/lib/default-translations.ts`:
-
-```typescript
-const defaultTranslations = {
-	hello: 'Hello (default)',
-	goodbye: 'Goodbye (default)',
-	welcome: 'Welcome, {{name}}!',
-	'user-count': 'There are {{count}} users online',
-	'nested-params': 'Hello {{name}}, you have {{count}} messages'
-} as const;
-
-export default defaultTranslations;
-```
-
-3. **Use in your Svelte components**:
+### 3. Use in your SvelteKit app
 
 ```svelte
 <script lang="ts">
-	import * as t from '@sveltekit-translations-loader';
-	// or import { hello, welcome } from '@sveltekit-translations-loader';
+  import { t } from '@inlang/paraglide-js';
 </script>
 
-<h1>{t.hello()}</h1><p>{t.welcome({ name: 'Anton' })}</p><p>{t.userCount({ count: 42 })}</p>
+<h1>{t('hello')}</h1>
 ```
 
-## 📖 Usage Examples
+## API Reference
 
-### Basic Translation
-
-```typescript
-// Translation key: "hello"
-t.hello(); // "Hello (default)"
-```
-
-### Parameter Interpolation
+### Plugin Configuration
 
 ```typescript
-// Translation key: "welcome" with value "Welcome, {{name}}!"
-t.welcome({ name: 'John' }); // "Welcome, John!"
-
-// Multiple parameters
-t.nestedParams({ name: 'Alice', count: 5 });
-// "Hello Alice, you have 5 messages"
-```
-
-### Tree-shakable Imports
-
-```typescript
-// Import only what you need
-import { hello, welcome } from '@sveltekit-translations-loader';
-
-// Only these functions will be included in your bundle
-console.log(hello());
-console.log(welcome({ name: 'Developer' }));
-```
-
-### Kebab-case Key Conversion
-
-```typescript
-// Translation key: "user-count" becomes function userCount()
-t.userCount({ count: 100 }); // "There are 100 users online"
-```
-
-## 🔧 API Reference
-
-### Plugin Options
-
-```typescript
-interface SvelteKitTranslationsImporterPluginOptions {
-	defaultPath: string; // Path to your default translations file
-	runtimePath: string; // Where to generate the runtime functions
+interface PluginConfig {
+  translationsDir: string;        // Directory containing translation files
+  outputDir: string;             // Directory for generated types
+  defaultLocale?: string;        // Default locale (default: 'en')
+  supportedLocales?: string[];   // Supported locales
+  watchMode?: boolean;           // Enable watch mode for development
 }
 ```
 
-### Translation Function Signature
+### Core Exports
+
+#### `sveltekitTranslationsImporterPlugin`
+The main Vite plugin for processing translation files.
+
+#### `TranslationsManager`
+Class for managing translations at runtime.
 
 ```typescript
-function translationKey(params?: Record<string, string | number>): string;
+import { TranslationsManager } from 'sveltekit-translations-loader';
+
+const manager = new TranslationsManager({
+  defaultLocale: 'en',
+  supportedLocales: ['en', 'es', 'fr']
+});
 ```
 
-- **params**: Optional object with key-value pairs for parameter interpolation
-- **Returns**: Translated string with interpolated values
-
-### Parameter Interpolation
-
-Use `{{key}}` syntax in your translation strings:
+#### `_getTranslations`
+Function for injecting translations into SvelteKit load functions.
 
 ```typescript
-'Hello {{name}}, you have {{count}} messages';
+import { _getTranslations } from 'sveltekit-translations-loader';
+
+export const load = async ({ params }) => {
+  const translations = _getTranslations(params.lang);
+  return { translations };
+};
 ```
 
-Parameters are replaced at runtime:
+#### `getTData` and `r`
+Utility functions for translation data handling.
 
 ```typescript
-t.message({ name: 'John', count: 3 });
-// "Hello John, you have 3 messages"
+import { getTData, r } from 'sveltekit-translations-loader';
+
+const tData = getTData('hello');
+const result = r(tData, 'en');
 ```
 
-## 🏗️ How It Works
+## Advanced Usage
 
-1. **Build Time**: The Vite plugin reads your default translations
-2. **Code Generation**: Individual functions are generated for each translation key
-3. **Tree Shaking**: Bundlers can eliminate unused translation functions
-4. **Runtime**: Zero overhead - just direct function calls
+### Custom Translation Structure
 
-## 🎯 Benefits
-
-### Traditional i18n Libraries
+You can customize the translation file structure:
 
 ```typescript
-// Everything bundled, even unused translations
-import i18n from 'some-i18n-lib';
-i18n.t('hello'); // Runtime key lookup
+// Custom structure example
+export default {
+  messages: {
+    en: "Hello",
+    es: "Hola"
+  },
+  metadata: {
+    description: "Greeting message"
+  }
+};
 ```
 
-### SvelteKit Translations Importer
+### Runtime Language Switching
 
 ```typescript
-// Only imported functions bundled
-import { hello } from '@sveltekit-translations-loader';
-hello(); // Direct function call
+import { TranslationsManager } from 'sveltekit-translations-loader';
+
+const manager = new TranslationsManager();
+manager.setLocale('es'); // Switch to Spanish
 ```
 
-## 🔄 Development Workflow
+### Type-Safe Translation Keys
 
-1. **Add translation keys** to your default translations file
-2. **Vite plugin automatically regenerates** functions on file changes
-3. **Import and use** the new functions in your components
-4. **TypeScript provides full intellisense** for available functions
-
-## 📦 Output Example
-
-Your translations file:
+The plugin generates TypeScript types for your translation keys:
 
 ```typescript
-{
-  hello: 'Hello (default)',
-  'user-count': 'There are {{count}} users'
-}
+// Generated types
+type TranslationKeys = 'hello' | 'goodbye' | 'welcome';
+
+// Usage with full type safety
+const message: TranslationKeys = 'hello'; // ✅ Valid
+const invalid: TranslationKeys = 'invalid'; // ❌ Type error
 ```
 
-Generated functions:
+## Development
 
-```typescript
-export function hello(params?: Record<string, string | number>): string {
-	return 'Hello (default)';
-}
+### Building the Library
 
-export function userCount(params?: Record<string, string | number>): string {
-	let result = 'There are {{count}} users';
-	if (params?.count) {
-		result = result.replace(/\{\{\s*count\s*\}\}/g, String(params.count));
-	}
-	return result;
-}
+```bash
+npm run build
 ```
 
-## 🤝 Contributing
+### Running Tests
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+```bash
+npm run test:unit
+```
 
-## 📄 License
+### Type Checking
+
+```bash
+npm run check
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
 
 MIT License - see LICENSE file for details.
+
+## Support
+
+- 📖 [Documentation](https://github.com/yourusername/sveltekit-translations-loader#readme)
+- 🐛 [Issues](https://github.com/yourusername/sveltekit-translations-loader/issues)
+- 💬 [Discussions](https://github.com/yourusername/sveltekit-translations-loader/discussions)

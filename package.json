@@ -1,17 +1,30 @@
 {
 	"name": "sveltekit-translations-loader",
 	"version": "0.0.1",
+	"description": "A powerful translation system for SvelteKit with automatic type generation and runtime injection",
+	"author": "Anton Pavlenkov",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AntonPavlenkov/sveltekit-translations-loader.git"
+	},
+	"homepage": "https://github.com/AntonPavlenkov/sveltekit-translations-loader#readme",
+	"bugs": {
+		"url": "https://github.com/AntonPavlenkov/sveltekit-translations-loader/issues"
+	},
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build && npm run prepack",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
-		"prepack": "svelte-kit sync && svelte-package && publint",
+		"prepack": "svelte-kit sync && svelte-package && npm run fix-library-imports && publint",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
-		"test:unit": "vitest"
+		"test:unit": "vitest",
+		"prepublishOnly": "npm run build",
+		"fix-library-imports": "node scripts/fix-library-imports.js"
 	},
 	"files": [
 		"dist",
@@ -27,17 +40,35 @@
 	"exports": {
 		".": {
 			"types": "./dist/index.d.ts",
-			"svelte": "./dist/index.js"
+			"import": "./dist/index.js"
+		},
+		"./plugin": {
+			"types": "./dist/plugin/index.d.ts",
+			"import": "./dist/plugin/index.js"
+		},
+		"./server": {
+			"types": "./dist/plugin/index.d.ts",
+			"import": "./dist/plugin/index.js"
+		},
+		"./helpers": {
+			"types": "./dist/helpers/index.d.ts",
+			"import": "./dist/helpers/index.js"
 		}
 	},
 	"peerDependencies": {
+		"@sveltejs/kit": "^2.0.0",
 		"svelte": "^5.0.0"
 	},
+	"dependencies": {},
 	"devDependencies": {
 		"@eslint/compat": "^1.2.5",
 		"@eslint/js": "^9.18.0",
+		"@sveltejs/adapter-node": "^5.2.13",
 		"@sveltejs/kit": "^2.22.0",
+		"@sveltejs/package": "^2.4.0",
 		"@sveltejs/vite-plugin-svelte": "^6.0.0",
+		"@tailwindcss/forms": "^0.5.10",
+		"@tailwindcss/typography": "^0.5.16",
 		"@tailwindcss/vite": "^4.0.0",
 		"@types/node": "^24.1.0",
 		"eslint": "^9.18.0",
@@ -46,14 +77,23 @@
 		"prettier": "^3.4.2",
 		"prettier-plugin-svelte": "^3.3.3",
 		"prettier-plugin-tailwindcss": "^0.6.11",
+		"publint": "^0.3.12",
 		"svelte": "^5.0.0",
 		"svelte-check": "^4.0.0",
 		"tailwindcss": "^4.0.0",
 		"typescript": "^5.0.0",
 		"typescript-eslint": "^8.20.0",
-		"vite": "^7.0.4"
+		"vite": "^7.0.4",
+		"vitest": "^3.2.4"
 	},
 	"keywords": [
-		"svelte"
+		"svelte",
+		"sveltekit",
+		"translations",
+		"i18n",
+		"internationalization",
+		"typescript",
+		"vite-plugin",
+		"paraglide"
 	]
 }

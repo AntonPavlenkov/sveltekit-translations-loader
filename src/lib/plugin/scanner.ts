@@ -19,13 +19,12 @@ export function scanTranslationUsage(filePath: string): Set<string> {
 		const content = readFileSync(filePath, 'utf8');
 
 		// First, check if this file imports from the translations library
-		const hasTranslationImport = /import\s+\{[^}]*\}\s+from\s+['"]\$lib\/index\.js['"]/.test(
-			content
-		);
+		const hasTranslationImport =
+			/import\s+\{[^}]*\}\s+from\s+['"]sveltekit-translations-loader['"]/.test(content);
 
 		// Match patterns like t.hello(), t.welcome(), t.userCount(), t['user-count']()
 		// Also match data._loadedTranslations.hello, data._loadedTranslations['user-count']
-		// And match direct function calls like hello(), welcome() when imported from $lib/index.js
+		// And match direct function calls like hello(), welcome() when imported from sveltekit-translations-loader
 		const patterns = [
 			/\bt\.([a-zA-Z][a-zA-Z0-9]*)\s*\(/g, // t.hello()
 			/\bt\[['"]([^'"]+)['"]\]\s*\(/g, // t['user-count']()

@@ -1,0 +1,48 @@
+# Development files
+.vscode/
+.idea/
+*.log
+*.tsbuildinfo
+
+# Source files (not needed in npm package)
+src/
+!src/lib/
+
+# Test files
+*.test.*
+*.spec.*
+test/
+tests/
+vitest.config.ts
+
+# Build artifacts
+build/
+dist/
+!dist/
+
+# Configuration files
+vite.config.ts
+svelte.config.js
+tsconfig.json
+eslint.config.js
+.prettierrc
+.prettierignore
+
+# Documentation
+TRANSHAKE_IMPROVEMENTS.md
+
+# Git
+.git/
+.gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local 

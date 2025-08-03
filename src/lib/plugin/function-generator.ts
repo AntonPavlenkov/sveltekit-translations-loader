@@ -18,7 +18,8 @@ export async function loadDefaultTranslations(
  */
 export async function generateTranslations(
 	defaultPath: string,
-	runtimePath: string
+	runtimePath: string,
+	verbose: boolean = false
 ): Promise<void> {
 	try {
 		// Read default translations
@@ -105,8 +106,12 @@ export async function generateTranslations(
 		const dtsPath = join(runtimeDir, 'index.d.ts');
 		await writeFile(dtsPath, dtsContent);
 
-		console.log('✅ Generated individual translation files for tree-shaking');
+		if (verbose) {
+			console.log('✅ Generated individual translation files for tree-shaking');
+		}
 	} catch (error) {
-		console.error('❌ Error generating translations:', error);
+		if (verbose) {
+			console.error('❌ Error generating translations:', error);
+		}
 	}
 }

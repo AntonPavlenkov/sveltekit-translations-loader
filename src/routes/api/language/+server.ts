@@ -1,7 +1,6 @@
-import { translationsManager } from '$lib/server/translations-manager.js';
 import { json, type RequestEvent } from '@sveltejs/kit';
 
-export async function POST({ request, cookies }: RequestEvent) {
+export async function POST({ request, cookies, locals }: RequestEvent) {
 	try {
 		const { locale } = await request.json();
 
@@ -11,7 +10,7 @@ export async function POST({ request, cookies }: RequestEvent) {
 		}
 
 		// Check if locale is supported
-		const availableLocales = translationsManager.getAvailableLocales();
+		const availableLocales = locals.translationsManager.getLocales();
 		if (!availableLocales.includes(locale)) {
 			return json(
 				{
@@ -42,10 +41,10 @@ export async function POST({ request, cookies }: RequestEvent) {
 	}
 }
 
-export async function GET({ cookies }: RequestEvent) {
+export async function GET({ cookies, locals }: RequestEvent) {
 	// Get current locale from cookie
 	const currentLocale = cookies.get('locale') || 'en-US';
-	const availableLocales = translationsManager.getAvailableLocales();
+	const availableLocales = locals.translationsManager.getLocales();
 
 	return json({
 		currentLocale,

@@ -8,20 +8,21 @@ import { injectTranslationKeys } from './load-function-updater.js';
 import { buildRouteHierarchy, findPageTranslationUsage } from './scanner.js';
 import { generateTypeDeclarations } from './type-generator.js';
 
-interface PluginOptions {
+export interface PluginConfig {
 	defaultPath: string;
 	runtimePath: string;
+	verbose?: boolean;
 }
 
-export function sveltekitTranslationsImporterPlugin(options: PluginOptions): Plugin {
-	const { defaultPath, runtimePath } = options;
+export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
+	const { defaultPath, runtimePath, verbose = false } = options;
 
 	async function processTranslations() {
 		// Generate base translation functions
-		await generateTranslations(defaultPath, runtimePath);
+		await generateTranslations(defaultPath, runtimePath, verbose);
 
 		// Generate TypeScript declarations for the virtual module
-		await generateTypeDeclarations(defaultPath);
+		await generateTypeDeclarations(defaultPath, verbose, runtimePath);
 
 		// Load default translations to resolve keys properly
 		const translationsPath = resolve(defaultPath);
@@ -32,7 +33,9 @@ export function sveltekitTranslationsImporterPlugin(options: PluginOptions): Plu
 		const routesDir = resolve('src/routes');
 		const pageUsages = findPageTranslationUsage(routesDir);
 
-		console.log(`🔍 Found ${pageUsages.length} pages with translation usage`);
+		if (verbose) {
+			console.log(`🔍 Found ${pageUsages.length} pages with translation usage`);
+		}
 
 		// Build route hierarchy to handle nested routes properly
 		const routeHierarchy = buildRouteHierarchy(pageUsages);
@@ -41,9 +44,11 @@ export function sveltekitTranslationsImporterPlugin(options: PluginOptions): Plu
 		for (const { serverFile, routePath } of pageUsages) {
 			const accumulatedKeys = routeHierarchy.get(routePath) || new Set();
 			const resolvedKeys = resolveTranslationKeys(accumulatedKeys, defaultTranslations);
-			console.log(`📝 Resolved keys for route ${routePath}:`, Array.from(resolvedKeys));
+			if (verbose) {
+				console.log(`📝 Resolved keys for route ${routePath}:`, Array.from(resolvedKeys));
+			}
 
-			injectTranslationKeys(serverFile, resolvedKeys, routePath);
+			injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose);
 		}
 	}
 
@@ -65,7 +70,9 @@ export function sveltekitTranslationsImporterPlugin(options: PluginOptions): Plu
 					file.includes(defaultPath) ||
 					(file.includes('src/routes') && file.endsWith('.svelte'))
 				) {
-					console.log(`🔄 Detected change in ${basename(file)}, reprocessing translations...`);
+					if (verbose) {
+						console.log(`🔄 Detected change in ${basename(file)}, reprocessing translations...`);
+					}
 					await processTranslations();
 				}
 			});
@@ -76,6 +83,10 @@ export function sveltekitTranslationsImporterPlugin(options: PluginOptions): Plu
 				// Return virtual module ID for the translations loader
 				return '\0@sveltekit-translations-loader';
 			}
+			if (id === '@sveltekit-translations-loader/core') {
+				// Return virtual module ID for the core exports
+				return '\0@sveltekit-translations-loader/core';
+			}
 			return null;
 		},
 
@@ -83,12 +94,17 @@ export function sveltekitTranslationsImporterPlugin(options: PluginOptions): Plu
 			if (id === '\0@sveltekit-translations-loader') {
 				// Return the content that should be loaded for the virtual module
 				return `// Virtual module for @sveltekit-translations-loader
-export * from '${resolve('src/lib/index.ts')}';`;
+export * from '${resolve(runtimePath)}';`;
+			}
+			if (id === '\0@sveltekit-translations-loader') {
+				// Return the content for the core exports virtual module
+				return `// Virtual module for @sveltekit-translations-loader/core
+export { getTData, r } from 'sveltekit-translations-loader';
+export { sveltekitTranslationsImporterPlugin } from 'sveltekit-translations-loader/plugin';`;
 			}
 			return null;
 		}
 	};
 }
-
 // Export transform function for use in server hooks
 export { transformTranslationCode };

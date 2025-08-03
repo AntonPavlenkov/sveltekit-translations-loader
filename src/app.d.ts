@@ -1,4 +1,7 @@
 // See https://kit.svelte.dev/docs/types#app
+
+import type { TranslationsManager } from 'sveltekit-translations-loader/server';
+
 // for information about these interfaces
 declare global {
 	namespace App {
@@ -7,11 +10,9 @@ declare global {
 			locale: string;
 			extraKeys?: Record<string, string>;
 			_translationsData?: Record<string, string>;
-			transhakeExtraKeys?: Record<string, string>;
+			translationsManager: TranslationsManager;
 		}
-		interface PageData {
-			_loadedTranslations?: Record<string, string>;
-		}
+
 		// interface PageState {}
 		// interface Platform {}
 	}

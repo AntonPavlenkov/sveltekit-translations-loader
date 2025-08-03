@@ -1,22 +1,17 @@
-import { translationsManager } from '$lib/server/translations-manager.js';
+import { TranslationsManager } from '$lib/server';
+
 import type { Handle } from '@sveltejs/kit';
 
-let isInitialized = false;
-
-async function ensureInitialized() {
-	if (!isInitialized) {
-		try {
-			const defaultTranslations = (await import('$lib/default-translations.js')).default;
-			await translationsManager.initialize(defaultTranslations);
-			isInitialized = true;
-		} catch (error) {
-			console.error('❌ Failed to initialize translations manager:', error);
-		}
-	}
-}
+const translationsManager = new TranslationsManager(
+	import('./types/default-translations'),
+	['en-US', 'de-DE', 'es-ES', 'fr-FR'],
+	getTranslationsForLocale
+);
 
 export const handle: Handle = async ({ event, resolve }) => {
-	await ensureInitialized();
+	await translationsManager.initialize();
+	event.locals.translationsManager = translationsManager;
+	console.log('🚀 ~ handle ~ translationsManager:', translationsManager);
 
 	// Set locale from cookie, then headers, then default
 	const cookieLocale = event.cookies.get('locale');
@@ -26,19 +21,60 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 	console.log('🌍 Setting locale:', { cookieLocale, headerLocale, finalLocale });
 
-	// Initialize _translationsData with all available translations for the current locale
-	// This will be accumulated by each route's load function
-	const allTranslations = translationsManager.getTranslations(finalLocale);
-	event.locals._translationsData = allTranslations;
-
-	// Example: Add extra translation keys for dynamic content
-	// This could be based on user permissions, dynamic data, etc.
-	event.locals.transhakeExtraKeys = {
-		'dynamic-welcome': `Welcome to ${event.url.pathname}`,
-		'user-specific': 'Custom user message',
-		// You can add any dynamic keys here that weren't auto-detected
-		'api-generated-key': 'Value from API or database'
-	};
-
 	return resolve(event);
 };
+
+async function getTranslationsForLocale(locale: string) {
+	// Mock implementation - replace with your actual translation source
+	const mockTranslations: { [locale: string]: Record<string, string> } = {
+		'de-DE': {
+			hello: 'Hallo',
+			goodbye: 'Auf Wiedersehen',
+			welcome: 'Willkommen, {{name}}!',
+			'user-count': 'Es gibt {{count}} Benutzer online',
+			'nested-params': 'Hallo {{name}}, du hast {{count}} Nachrichten',
+			hey: 'Hallo {{name}}',
+			zap: 'Zap',
+			layoutTitle: 'Verschachtelter Layout-Titel',
+			layoutDescription:
+				'Dies ist eine Layout-Beschreibung, die von untergeordneten Routen geerbt wird',
+			pageTitle: 'Verschachtelter Seiten-Titel',
+			pageContent:
+				'Dieser Seiteninhalt demonstriert die Vererbung von Übersetzungen in verschachtelten Routen'
+		},
+		'es-ES': {
+			hello: 'Hola',
+			goodbye: 'Adiós',
+			welcome: '¡Bienvenido, {{name}}!',
+			'user-count': 'Hay {{count}} usuarios en línea',
+			'nested-params': 'Hola {{name}}, tienes {{count}} mensajes',
+			hey: '¡Hola {{name}}!',
+			zap: 'Zap',
+			layoutTitle: 'Título de Layout Anidado',
+			layoutDescription: 'Esta es una descripción de layout que será heredada por rutas hijas',
+			pageTitle: 'Título de Página Anidada',
+			pageContent:
+				'Este contenido de página demuestra la herencia de traducciones en rutas anidadas'
+		},
+		'fr-FR': {
+			hello: 'Bonjour',
+			goodbye: 'Au revoir',
+			welcome: 'Bienvenue, {{name}}!',
+			'user-count': 'Il y a {{count}} utilisateurs en ligne',
+			'nested-params': 'Bonjour {{name}}, vous avez {{count}} messages',
+			hey: 'Bonjour {{name}}',
+			zap: 'Zap',
+			layoutTitle: 'Titre de Layout Imbriqué',
+			layoutDescription:
+				'Ceci est une description de layout qui sera héritée par les routes enfants',
+			pageTitle: 'Titre de Page Imbriquée',
+			pageContent:
+				"Ce contenu de page démontre l'héritage des traductions dans les routes imbriquées"
+		}
+	};
+
+	// Simulate API delay
+	await new Promise((resolve) => setTimeout(resolve, 100));
+
+	return mockTranslations[locale] || {};
+}

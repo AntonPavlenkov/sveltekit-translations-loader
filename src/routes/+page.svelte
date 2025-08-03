@@ -7,7 +7,7 @@
 
 <div class="container mx-auto space-y-6 p-8">
 	<header class="mb-8 text-center">
-		<h1 class="mb-2 text-4xl font-bold text-gray-800">🌐 SvelteKit Translations Importer</h1>
+		<h1 class="mb-2 text-4xl font-bold text-gray-800">🌐 Svel teKit Translations Importer</h1>
 		<p class="text-lg text-gray-600">
 			Tree-shakable translations with auto-injected load functions
 		</p>

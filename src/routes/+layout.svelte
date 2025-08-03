@@ -1,4 +1,5 @@
 <script lang="ts">
+	import {} from '@sveltekit-translations-loader';
 	import '../app.css';
 	import type { LayoutData } from './$types.js';
 
@@ -6,7 +7,7 @@
 
 	// Language switching function
 	async function switchLanguage(locale: string) {
-		console.log('🔄 Switching to locale:', locale);
+		console.log('🔄 Switching to loc ale:', locale);
 		try {
 			const response = await fetch('/api/language', {
 				method: 'POST',

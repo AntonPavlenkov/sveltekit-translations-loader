@@ -1,5 +1,6 @@
 <script lang="ts">
 	import * as t from '@sveltekit-translations-loader';
+	import NestedComponentOne from './NestedComponentOne.svelte';
 </script>
 
 <div class="nested-page">
@@ -11,11 +12,13 @@
 		<h3>Combined Keys Demo:</h3>
 		<p>Layout title: {t.layoutTitle()}</p>
 		<p>Page title: {t.pageTitle()}</p>
-		<p>This demonstrates nested route translation inheritance!</p>
+		<p>This demonstrates nested route transl ation inheritance!</p>
 		<p>
 			Dynamic keys are available: {t.nestedParams({ name: 'John', count: 42 }) || 'Not available'}
 		</p>
 	</div>
+
+	<NestedComponentOne />
 </div>
 
 <style>
