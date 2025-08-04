@@ -7,18 +7,28 @@ import { generateTranslations } from './function-generator.js';
 import { resolveTranslationKeys, transformTranslationCode } from './helpers.js';
 import { injectTranslationKeys } from './load-function-updater.js';
 import { buildRouteHierarchy, findPageTranslationUsage } from './scanner.js';
-import { transformSvelteFiles } from './svelte-transformer.js';
+import { transformSvelteContent } from './svelte-transformer.js';
 import { generateTypeDeclarations } from './type-generator.js';
 
 export interface PluginConfig {
 	defaultPath: string;
 	runtimePath: string;
 	verbose?: boolean;
+	/**
+	 * Remove @i18n imports during build and replace with direct page.data access for better performance.
+	 * Only affects client-side builds, server-side rendering uses original translation functions.
+	 * @default false
+	 */
 	removeFunctionsOnBuild?: boolean;
 }
 
 export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
 	const { defaultPath, runtimePath, verbose = false, removeFunctionsOnBuild = false } = options;
+
+	// Log build optimization info
+	if (removeFunctionsOnBuild && verbose) {
+		console.log('🚀 removeFunctionsOnBuild enabled - optimizing client-side translations');
+	}
 
 	// Auto-detect if we're in development mode for the library itself
 	// This checks if we're working on the library source code, not using it as a package
@@ -27,6 +37,7 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 		existsSync(resolve('src/lib/helpers/utils.ts'));
 
 	let isBuildMode = false;
+	let defaultTranslations: Record<string, string> = {};
 
 	async function processTranslations() {
 		// Generate base translation functions
@@ -38,7 +49,7 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 		// Load default translations to resolve keys properly
 		const translationsPath = resolve(defaultPath);
 		const translationsModule = await import(`file://${translationsPath}?t=${Date.now()}`);
-		const defaultTranslations = translationsModule.default || translationsModule;
+		defaultTranslations = translationsModule.default || translationsModule;
 
 		// Scan for translation usage and auto-inject into load functions
 		const routesDir = resolve('src/routes');
@@ -62,13 +73,8 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 			injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose);
 		}
 
-		// Transform Svelte files if removeFunctionsOnBuild is enabled and we're in build mode
-		if (removeFunctionsOnBuild && isBuildMode) {
-			if (verbose) {
-				console.log('🚀 Build mode detected: Transforming Svelte files to remove @i18n imports');
-			}
-			await transformSvelteFiles(verbose, defaultTranslations);
-		}
+		// Note: Svelte file transformation is now handled in the transform hook
+		// to avoid modifying source files and only affect build output
 	}
 
 	return {
@@ -121,6 +127,51 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 				// Return the content that should be loaded for the virtual module
 				return `// Virtual module for @i18n
 export * from '${resolve(runtimePath)}';`;
+			}
+
+			return null;
+		},
+
+		transform(code, id, options) {
+			// Only transform .svelte files when removeFunctionsOnBuild is enabled and we're in build mode
+			if (removeFunctionsOnBuild && isBuildMode && id.endsWith('.svelte')) {
+				// Enhanced SSR detection - check multiple indicators
+				const isSSR =
+					options?.ssr === true ||
+					id.includes('.svelte-kit/generated/server/') ||
+					id.includes('?ssr') ||
+					process.env.VITE_SSR === 'true';
+
+				// Only transform for client builds, not SSR
+				if (!isSSR) {
+					// Check if the file contains @i18n imports
+					if (
+						code.includes("import * as t from '@i18n'") ||
+						code.includes('import * as t from "@i18n"')
+					) {
+						if (verbose) {
+							console.log(
+								`🔄 Transforming ${id.replace(process.cwd(), '.')} for client build only`
+							);
+						}
+
+						try {
+							const transformedCode = transformSvelteContent(code, defaultTranslations, verbose);
+							return {
+								code: transformedCode,
+								map: null // Could add source map support here if needed
+							};
+						} catch (error) {
+							if (verbose) {
+								console.error(`❌ Error transforming ${id}:`, error);
+							}
+							// Return original code if transformation fails
+							return null;
+						}
+					}
+				} else if (verbose) {
+					console.log(`⏭️  Skipping SSR transformation for ${id.replace(process.cwd(), '.')}`);
+				}
 			}
 
 			return null;
