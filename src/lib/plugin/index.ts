@@ -83,10 +83,7 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 				// Return virtual module ID for the translations loader
 				return '\0@sveltekit-translations-loader';
 			}
-			if (id === '@sveltekit-translations-loader/core') {
-				// Return virtual module ID for the core exports
-				return '\0@sveltekit-translations-loader/core';
-			}
+
 			return null;
 		},
 
@@ -96,12 +93,7 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 				return `// Virtual module for @sveltekit-translations-loader
 export * from '${resolve(runtimePath)}';`;
 			}
-			if (id === '\0@sveltekit-translations-loader') {
-				// Return the content for the core exports virtual module
-				return `// Virtual module for @sveltekit-translations-loader/core
-export { getTData, r } from 'sveltekit-translations-loader';
-export { sveltekitTranslationsImporterPlugin } from 'sveltekit-translations-loader/plugin';`;
-			}
+
 			return null;
 		}
 	};

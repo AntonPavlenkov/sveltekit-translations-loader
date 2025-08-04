@@ -1,2 +1,3 @@
-export { TranslationsManager } from './translationsManager';
-export type { LocaleTranslations, TranslationData } from './translationsManager';
+// Server-side exports only
+export { _getTranslations } from './translations-injector.js';
+export { TranslationsManager } from './translationsManager.js';

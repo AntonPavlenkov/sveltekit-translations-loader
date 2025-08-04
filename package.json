@@ -13,18 +13,17 @@
 		"url": "https://github.com/AntonPavlenkov/sveltekit-translations-loader/issues"
 	},
 	"scripts": {
-		"dev": "vite dev",
+		"dev": "npm run prepack && vite dev",
 		"build": "vite build && npm run prepack",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
-		"prepack": "svelte-kit sync && svelte-package && npm run fix-library-imports && publint",
+		"prepack": "svelte-kit sync && svelte-package && publint",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"test:unit": "vitest",
-		"prepublishOnly": "npm run build",
-		"fix-library-imports": "node scripts/fix-library-imports.js"
+		"prepublishOnly": "npm run build"
 	},
 	"files": [
 		"dist",
@@ -47,8 +46,8 @@
 			"import": "./dist/plugin/index.js"
 		},
 		"./server": {
-			"types": "./dist/plugin/index.d.ts",
-			"import": "./dist/plugin/index.js"
+			"types": "./dist/server/index.d.ts",
+			"import": "./dist/server/index.js"
 		},
 		"./helpers": {
 			"types": "./dist/helpers/index.d.ts",

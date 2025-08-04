@@ -1,4 +1,4 @@
-import { TranslationsManager } from '$lib/server';
+import { TranslationsManager } from 'sveltekit-translations-loader/server';
 
 import type { Handle } from '@sveltejs/kit';
 

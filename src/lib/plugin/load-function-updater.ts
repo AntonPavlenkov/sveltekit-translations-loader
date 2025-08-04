@@ -55,7 +55,7 @@ export function modifyLoadFunction(loadFunctionCode: string): string {
 function generateTranslationsCode(keysArray: string[]): string {
 	return `// =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
-import { _getTranslations } from 'sveltekit-translations-loader';
+import { _getTranslations } from 'sveltekit-translations-loader/server';
 const _translationKeys: string[] = [${keysArray.map((key) => `'${key}'`).join(', ')}];
 // END AUTO-GENERATED CODE
 // =============================================================================
