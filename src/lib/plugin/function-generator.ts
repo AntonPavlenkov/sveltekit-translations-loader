@@ -45,9 +45,7 @@ export async function generateTranslations(
 			functionCode += '// Do not edit manually\n\n';
 
 			// Use different import paths for development vs production
-			const helpersImport = development 
-				? "$lib/helpers" 
-				: "sveltekit-translations-loader/helpers";
+			const helpersImport = development ? '$lib/helpers' : 'sveltekit-translations-loader/helpers';
 
 			if (hasPlaceholders) {
 				functionCode += `import { r, getTData } from '${helpersImport}';\n\n`;
