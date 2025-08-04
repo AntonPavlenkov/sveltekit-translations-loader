@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as t from '@sveltekit-translations-loader';
+	import * as t from '@i18n';
 </script>
 
 <div class="nested-layout">

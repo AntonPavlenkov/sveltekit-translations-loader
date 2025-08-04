@@ -1,5 +1,4 @@
 <script lang="ts">
-	import {} from '@sveltekit-translations-loader';
 	import '../app.css';
 	import type { LayoutData } from './$types.js';
 

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import * as t from '@sveltekit-translations-loader';
+	import * as t from '@i18n';
 	import type { PageData } from './$types.js';
 
 	let { data }: { data: PageData } = $props();

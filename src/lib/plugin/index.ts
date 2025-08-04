@@ -1,3 +1,4 @@
+import { existsSync } from 'fs';
 import { basename, resolve } from 'path';
 import type { Plugin } from 'vite';
 
@@ -17,9 +18,15 @@ export interface PluginConfig {
 export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
 	const { defaultPath, runtimePath, verbose = false } = options;
 
+	// Auto-detect if we're in development mode for the library itself
+	// This checks if we're working on the library source code, not using it as a package
+	const isDevelopment =
+		process.cwd().includes('sveltekit-translations-loader') &&
+		existsSync(resolve('src/lib/helpers/utils.ts'));
+
 	async function processTranslations() {
 		// Generate base translation functions
-		await generateTranslations(defaultPath, runtimePath, verbose);
+		await generateTranslations(defaultPath, runtimePath, verbose, isDevelopment);
 
 		// Generate TypeScript declarations for the virtual module
 		await generateTypeDeclarations(defaultPath, verbose, runtimePath);
@@ -79,18 +86,18 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 		},
 
 		resolveId(id) {
-			if (id === '@sveltekit-translations-loader') {
+			if (id === '@i18n') {
 				// Return virtual module ID for the translations loader
-				return '\0@sveltekit-translations-loader';
+				return '\0@i18n';
 			}
 
 			return null;
 		},
 
 		load(id) {
-			if (id === '\0@sveltekit-translations-loader') {
+			if (id === '\0@i18n') {
 				// Return the content that should be loaded for the virtual module
-				return `// Virtual module for @sveltekit-translations-loader
+				return `// Virtual module for @i18n
 export * from '${resolve(runtimePath)}';`;
 			}
 
