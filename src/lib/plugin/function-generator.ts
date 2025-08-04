@@ -44,9 +44,9 @@ export async function generateTranslations(
 			functionCode += '// Do not edit manually\n\n';
 
 			if (hasPlaceholders) {
-				functionCode += "import { r, getTData } from '$lib/helpers/utils.js';\n\n";
+				functionCode += "import { r, getTData } from 'sveltekit-translations-loader';\n\n";
 			} else {
-				functionCode += "import { getTData } from '$lib/helpers/utils.js';\n\n";
+				functionCode += "import { getTData } from 'sveltekit-translations-loader';\n\n";
 			}
 
 			functionCode += `/**\n * @description ${value}\n */\n`;

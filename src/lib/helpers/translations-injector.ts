@@ -4,8 +4,6 @@ export function _getTranslations(loadFunctionKeys: string[] = []) {
 	const event = getRequestEvent();
 
 	const allTranslations = event?.locals.translationsManager.getTranslations(event?.locals.locale);
-	console.log('🚀 ~ _getTranslations ~ event?.locals.locale:', event?.locals.locale);
-
 	// Get accumulated translations from parent routes
 	const parentTranslations = event?.locals._translationsData || {};
 
@@ -21,7 +19,6 @@ export function _getTranslations(loadFunctionKeys: string[] = []) {
 				)
 			}
 		: {};
-	console.log('🚀 ~ _getTranslations ~ currentTranslations:', allTranslations);
 
 	// Merge with parent translations and extra keys
 	const extraKeys = event?.locals.extraKeys || {};

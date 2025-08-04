@@ -1,2 +1,2 @@
-export { _getTranslations, setDefaultTranslations } from './translations-injector.js';
-export { r, getTData } from './utils.js'; 
+export { _getTranslations } from './translations-injector.js';
+export { getTData, r } from './utils.js';
