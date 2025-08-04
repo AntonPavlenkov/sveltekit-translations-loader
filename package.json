@@ -22,8 +22,12 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
+		"test": "vitest run",
 		"test:unit": "vitest",
-		"prepublishOnly": "npm run build"
+		"test:watch": "vitest --watch",
+		"test:coverage": "vitest run --coverage",
+		"test:ui": "vitest --ui",
+		"prepublishOnly": "npm run test && npm run build"
 	},
 	"files": [
 		"dist",

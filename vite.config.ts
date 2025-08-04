@@ -10,7 +10,8 @@ export default defineConfig({
 		sveltekitTranslationsImporterPlugin({
 			defaultPath: 'src/types/default-translations.ts',
 			runtimePath: 'src/types/translations/messages/index.ts',
-			verbose: false // Set to true to enable console logging
+			verbose: false, // Set to true to enable console logging
+			removeFunctionsOnBuild: false // Remove @i18n imports and use direct page.data access (only during build)
 		})
 	]
 });

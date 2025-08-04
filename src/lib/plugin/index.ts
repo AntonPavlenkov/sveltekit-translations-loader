@@ -7,22 +7,26 @@ import { generateTranslations } from './function-generator.js';
 import { resolveTranslationKeys, transformTranslationCode } from './helpers.js';
 import { injectTranslationKeys } from './load-function-updater.js';
 import { buildRouteHierarchy, findPageTranslationUsage } from './scanner.js';
+import { transformSvelteFiles } from './svelte-transformer.js';
 import { generateTypeDeclarations } from './type-generator.js';
 
 export interface PluginConfig {
 	defaultPath: string;
 	runtimePath: string;
 	verbose?: boolean;
+	removeFunctionsOnBuild?: boolean;
 }
 
 export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
-	const { defaultPath, runtimePath, verbose = false } = options;
+	const { defaultPath, runtimePath, verbose = false, removeFunctionsOnBuild = false } = options;
 
 	// Auto-detect if we're in development mode for the library itself
 	// This checks if we're working on the library source code, not using it as a package
 	const isDevelopment =
 		process.cwd().includes('sveltekit-translations-loader') &&
 		existsSync(resolve('src/lib/helpers/utils.ts'));
+
+	let isBuildMode = false;
 
 	async function processTranslations() {
 		// Generate base translation functions
@@ -57,10 +61,28 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 			injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose);
 		}
+
+		// Transform Svelte files if removeFunctionsOnBuild is enabled and we're in build mode
+		if (removeFunctionsOnBuild && isBuildMode) {
+			if (verbose) {
+				console.log('🚀 Build mode detected: Transforming Svelte files to remove @i18n imports');
+			}
+			await transformSvelteFiles(verbose, defaultTranslations);
+		}
 	}
 
 	return {
 		name: 'sveltekit-translations-loader',
+
+		configResolved(config) {
+			// Detect if we're in production build mode
+			isBuildMode = config.command === 'build' && config.mode === 'production';
+			if (verbose) {
+				console.log(
+					`🔍 Mode detected: ${config.command} (mode: ${config.mode}, isBuildMode: ${isBuildMode})`
+				);
+			}
+		},
 
 		async buildStart() {
 			// Process translations and auto-inject into load functions

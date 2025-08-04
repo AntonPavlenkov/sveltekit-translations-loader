@@ -1,30 +1,51 @@
 # SvelteKit Translations Loader
 
-A powerful translation system for SvelteKit with automatic type generation, runtime injection, and intelligent tree-shaking. Built on top of Paraglide.js for optimal performance and developer experience.
+[![NPM Version](https://img.shields.io/npm/v/sveltekit-translations-loader)](https://www.npmjs.com/package/sveltekit-translations-loader)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+[![SvelteKit](https://img.shields.io/badge/SvelteKit-5.0+-orange.svg)](https://kit.svelte.dev/)
 
-## Features
+A powerful, intelligent translation system for SvelteKit with automatic type generation, runtime injection, tree-shaking, and build-time optimizations. Designed for maximum performance and developer experience.
 
-- 🚀 **Automatic Type Generation**: Generate TypeScript types from your translation files
-- 🔧 **Vite Plugin**: Seamless integration with SvelteKit's build process
-- 🎯 **Runtime Injection**: Inject translations at runtime with full type safety
-- 📦 **Zero Bundle Size**: Leverages Paraglide.js for optimal performance
-- 🔄 **Hot Reload**: Automatic reloading during development
-- 🛡️ **Type Safety**: Full TypeScript support with generated types
-- 🌳 **Intelligent Tree-shaking**: Only loads translation keys that are actually used
-- 🔍 **Auto-scanning**: Automatically detects translation usage in components and injects keys into load functions
-- 🏗️ **Virtual Module System**: Clean import interface with `@sveltekit-translations-loader`
+## ✨ Key Features
 
-## Installation
+### 🚀 **Smart Translation Management**
+
+- **Automatic Type Generation**: TypeScript types generated from your translation files
+- **Intelligent Tree-shaking**: Only loads translation keys that are actually used
+- **Auto-scanning**: Detects translation usage in components and auto-injects into load functions
+- **Recursive Component Scanning**: Scans imported components for comprehensive key detection
+
+### ⚡ **Build-Time Optimization**
+
+- **Production Optimization**: Removes function call overhead in production builds
+- **Bundle Size Reduction**: Eliminates translation function imports during build
+- **Direct Data Access**: Transforms to direct `page.data` access for maximum performance
+- **Development-Friendly**: Keeps clean function syntax during development
+
+### 🛡️ **Developer Experience**
+
+- **Full Type Safety**: Complete TypeScript support with generated types
+- **Hot Reload**: Automatic reloading during development
+- **Zero Configuration**: Works out of the box with sensible defaults
+- **Vite Integration**: Seamless integration with SvelteKit's build process
+
+### 🌐 **Internationalization**
+
+- **Multiple Locale Support**: Built-in support for multiple languages
+- **Parameter Interpolation**: Smart handling of translation parameters
+- **Nested Route Inheritance**: Automatic translation inheritance in nested routes
+- **Runtime Locale Switching**: Dynamic language switching
+
+## 📦 Installation
 
 ```bash
 npm install sveltekit-translations-loader
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Set up your default translations file
-
-Create your default translations file:
+### 1. Create Your Default Translations
 
 ```typescript
 // src/types/default-translations.ts
@@ -34,272 +55,372 @@ const defaultTranslations = {
 	welcome: 'Welcome, {{name}}!',
 	'user-count': 'There {{count}} users online',
 	'nested-params': 'Hello {{name}}, you have {{count}} messages',
-	hey: 'Hey {{name}}',
-	zap: 'Zap',
-	layoutTitle: 'Nested Layout Title',
-	layoutDescription: 'This is a layout description that will be inherited by child routes',
-	pageTitle: 'Nested Page Title',
-	pageContent: 'This page content demonstrates nested route translation inheritance'
+	layoutTitle: 'My App Layout',
+	pageContent: 'This is the page content'
 } as const;
 
 export default defaultTranslations;
 ```
 
-### 2. Configure the Vite plugin
+### 2. Configure the Vite Plugin
 
 ```typescript
 // vite.config.ts
 import { sveltekit } from '@sveltejs/kit/vite';
 import { sveltekitTranslationsImporterPlugin } from 'sveltekit-translations-loader/plugin';
+import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [
 		sveltekit(),
 		sveltekitTranslationsImporterPlugin({
 			defaultPath: 'src/types/default-translations.ts',
-			runtimePath: 'src/lib/runtime',
-			verbose: true // Enable detailed logging
+			runtimePath: 'src/types/translations/messages/index.ts',
+			verbose: false, // Set to true for detailed logging
+			removeFunctionsOnBuild: true // Enable production optimization
 		})
 	]
 });
 ```
 
-### 3. Set up server hooks
+### 3. Set Up Server Hooks
 
 ```typescript
 // src/hooks.server.ts
 import { TranslationsManager } from 'sveltekit-translations-loader/server';
+import type { Handle } from '@sveltejs/kit';
 
 const translationsManager = new TranslationsManager({
-	defaultLocale: 'en',
-	supportedLocales: ['en', 'es', 'fr']
+	defaultLocale: 'en-US',
+	supportedLocales: ['en-US', 'de-DE', 'es-ES', 'fr-FR']
 });
 
-export const handle = async ({ event, resolve }) => {
-	// Set up translations manager and locale
+export const handle: Handle = async ({ event, resolve }) => {
+	// Initialize translations manager
+	await translationsManager.initialize();
+
+	// Detect locale from cookies, headers, or URL
+	const locale = event.cookies.get('locale') || 'en-US';
+
+	// Set up translations context
 	event.locals.translationsManager = translationsManager;
-	event.locals.locale = 'en'; // Or detect from request
+	event.locals.locale = locale;
 
 	return resolve(event);
 };
 ```
 
-### 4. Use in your SvelteKit components
+### 4. Use in Your Components
+
+```svelte
+<!-- src/routes/+page.svelte -->
+<script lang="ts">
+	import * as t from '@i18n';
+	import type { PageData } from './$types.js';
+
+	let { data }: { data: PageData } = $props();
+</script>
+
+<div>
+	<h1>{t.hello()}</h1>
+	<p>{t.welcome('Alice')}</p>
+	<p>{t.userCount(42)}</p>
+	<p>{t.nestedParams({ name: 'Bob', count: 5 })}</p>
+</div>
+```
+
+## ⚙️ Configuration
+
+### Plugin Options
+
+```typescript
+interface PluginConfig {
+	/** Path to your default translations file */
+	defaultPath: string;
+
+	/** Path where generated runtime files will be stored */
+	runtimePath: string;
+
+	/** Enable detailed logging during build */
+	verbose?: boolean;
+
+	/**
+	 * Enable production build optimization
+	 * Removes @i18n imports and uses direct page.data access
+	 * Only active during 'npm run build'
+	 */
+	removeFunctionsOnBuild?: boolean;
+}
+```
+
+### TranslationsManager Options
+
+```typescript
+interface TranslationsManagerConfig {
+	/** Default locale to use */
+	defaultLocale: string;
+
+	/** Array of supported locales */
+	supportedLocales: string[];
+
+	/** Optional custom translation loader */
+	translationLoader?: (locale: string) => Promise<Record<string, string>>;
+}
+```
+
+## 🔄 Development vs Production Behavior
+
+### Development Mode (`npm run dev`)
 
 ```svelte
 <script lang="ts">
-	import * as t from '@sveltekit-translations-loader';
+	import * as t from '@i18n';
 </script>
 
-<h1>{t.hello()}</h1><p>{t.welcome('Alice')}</p>
+<p>{t.hello()}</p><p>{t.welcome('User')}</p><p>{t.userCount(42)}</p>
 ```
 
-## How It Works
+**Benefits:**
 
-### 1. Virtual Module System
+- Clean, readable function calls
+- Easy debugging and development
+- Hot reload support
+- Type safety and IntelliSense
 
-The plugin creates a virtual module `@sveltekit-translations-loader` that provides type-safe translation functions:
+### Production Mode (`npm run build`)
 
-```typescript
-// Generated automatically from your translation files
-import * as t from '@sveltekit-translations-loader';
+When `removeFunctionsOnBuild: true` is enabled, the build process automatically transforms your components:
 
-// Simple translations
-t.hello(); // Returns "Hello"
+```svelte
+<script lang="ts">
+	import { page } from '$app/state';
+	import { r } from '$lib/helpers';
+</script>
 
-// Parameterized translations
-t.welcome('John'); // Returns "Welcome, John!"
-t.userCount(42); // Returns "42 users online"
+<p>{page.data._loadedTranslations['hello']}</p>
+<p>{r(page.data._loadedTranslations['welcome'], { name: 'User' })}</p>
+<p>{r(page.data._loadedTranslations['user-count'], { count: 42 })}</p>
 ```
 
-### 2. Auto-injection of Translation Keys
+**Benefits:**
 
-The plugin automatically scans your Svelte components and injects only the used translation keys into your load functions:
+- Zero function call overhead
+- Smaller bundle size
+- Direct data access for maximum performance
+- Automatic parameter handling
+
+## 🌳 Tree-Shaking & Auto-Injection
+
+The plugin automatically scans your components and generates load functions with only the translations you actually use:
 
 ```typescript
 // src/routes/+page.server.ts (auto-generated)
-import { _getTranslations } from 'sveltekit-translations-loader/server';
-const _translationKeys: string[] = ['hello', 'welcome', 'user-count'];
+import { injectTranslations } from 'sveltekit-translations-loader/server';
 
-export const load = async () => {
+export const load = async ({ locals }) => {
+	const { translationsManager, locale } = locals;
+
+	// Only keys actually used in components
+	const translationKeys = ['hello', 'welcome', 'user-count'];
+
 	return {
-		_loadedTranslations: _getTranslations(_translationKeys)
+		...(await injectTranslations(translationsManager, locale, translationKeys))
 	};
 };
 ```
 
-### 3. Recursive Component Scanning
+## 🌐 Internationalization
 
-The plugin scans all imported components and accumulates translation keys for nested routes:
-
-```svelte
-<!-- src/routes/nested-example/+page.svelte -->
-<script lang="ts">
-	import * as t from '@sveltekit-translations-loader';
-	import NestedComponent from './NestedComponent.svelte';
-</script>
-
-<h1>{t.pageTitle()}</h1>
-<NestedComponent />
-```
-
-```svelte
-<!-- src/routes/nested-example/NestedComponent.svelte -->
-<script lang="ts">
-	import * as t from '@sveltekit-translations-loader';
-</script>
-
-<p>{t.nestedContent()}</p>
-```
-
-The plugin will automatically include both `pageTitle` and `nestedContent` keys in the load function.
-
-## API Reference
-
-### Plugin Configuration
+### Multiple Languages
 
 ```typescript
-interface PluginConfig {
-	defaultPath: string; // Path to your default translations file
-	runtimePath: string; // Path where generated runtime files will be stored
-	verbose?: boolean; // Enable detailed logging
-}
-```
+// src/types/translations/
+// ├── en-US.ts
+// ├── de-DE.ts
+// ├── es-ES.ts
+// └── fr-FR.ts
 
-### Core Exports
-
-#### `sveltekitTranslationsImporterPlugin`
-
-The main Vite plugin for processing translation files and auto-injecting keys.
-
-#### `TranslationsManager` (Server-side)
-
-Class for managing translations at runtime.
-
-```typescript
-import { TranslationsManager } from 'sveltekit-translations-loader/server';
-
-const manager = new TranslationsManager({
-	defaultLocale: 'en',
-	supportedLocales: ['en', 'es', 'fr']
-});
-```
-
-#### `_getTranslations` (Server-side)
-
-Function for injecting translations into SvelteKit load functions.
-
-```typescript
-import { _getTranslations } from 'sveltekit-translations-loader/server';
-
-export const load = async ({ params }) => {
-	const translations = _getTranslations(['hello', 'welcome']);
-	return { translations };
+// de-DE.ts
+export default {
+	hello: 'Hallo',
+	welcome: 'Willkommen, {{name}}!',
+	'user-count': 'Es gibt {{count}} Benutzer online'
 };
 ```
 
-#### `getTData` and `r` (Client-side)
+### Runtime Language Switching
 
-Utility functions for translation data handling.
+```svelte
+<script lang="ts">
+	async function switchLanguage(locale: string) {
+		await fetch('/api/language', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ locale })
+		});
+		window.location.reload();
+	}
+</script>
 
-```typescript
-import { getTData, r } from 'sveltekit-translations-loader';
-
-const tData = getTData();
-const result = r('Hello {{name}}', { name: 'World' });
+<select onchange={(e) => switchLanguage(e.target.value)}>
+	<option value="en-US">🇺🇸 English</option>
+	<option value="de-DE">🇩🇪 Deutsch</option>
+	<option value="es-ES">🇪🇸 Español</option>
+	<option value="fr-FR">🇫🇷 Français</option>
+</select>
 ```
 
-## Advanced Usage
+## 📊 Performance Benefits
 
-### Parameter Support
+### Bundle Size Reduction
 
-Translation functions automatically handle parameters:
+| Feature            | Development       | Production |
+| ------------------ | ----------------- | ---------- |
+| Function Imports   | ✅ Included       | ❌ Removed |
+| Direct Data Access | ❌ No             | ✅ Yes     |
+| Parameter Wrapping | ❌ Function calls | ✅ Inline  |
+| Type Safety        | ✅ Full           | ✅ Full    |
+
+### Runtime Performance
+
+- **Zero Function Call Overhead**: Direct property access in production
+- **Smaller JavaScript Bundles**: Elimination of translation function imports
+- **Optimized Parameter Handling**: Automatic parameter object creation
+- **Tree-Shaking**: Only used translation keys are included
+
+## 🔧 Advanced Usage
+
+### Custom Parameter Types
 
 ```typescript
-// Single parameter
-t.welcome('Alice'); // "Welcome, Alice!"
+// Single parameter (auto-wrapped)
+t.welcome('Alice');
+// Transforms to: r(translations['welcome'], { name: 'Alice' })
 
-// Multiple parameters
-t.nestedParams({ name: 'Bob', count: 5 }); // "Hello Bob, you have 5 items"
+// Multiple parameters (object)
+t.nestedParams({ name: 'Bob', count: 5 });
+// Transforms to: r(translations['nested-params'], { name: 'Bob', count: 5 })
 ```
 
 ### Nested Route Inheritance
 
-Translations from parent routes are automatically available in child routes:
-
 ```typescript
-// src/routes/+layout.server.ts
-const _translationKeys: string[] = ['layoutTitle', 'layoutDescription'];
-
-// src/routes/nested/+page.server.ts
-const _translationKeys: string[] = ['pageTitle', 'pageContent'];
-// Will have access to both layout and page translations
+// Parent layout translations are inherited by child routes
+// src/routes/+layout.server.ts → ['layoutTitle', 'navigation']
+// src/routes/dashboard/+page.server.ts → ['pageTitle', 'content']
+// Result: Child has access to all parent + own translations
 ```
 
-### Custom Translation Structure
-
-You can customize the translation file structure:
+### Custom Translation Loading
 
 ```typescript
-// Custom structure example
-export default {
-	messages: {
-		en: 'Hello',
-		es: 'Hola'
-	},
-	metadata: {
-		description: 'Greeting message'
+const manager = new TranslationsManager({
+	defaultLocale: 'en-US',
+	supportedLocales: ['en-US', 'custom'],
+	translationLoader: async (locale) => {
+		// Custom loading logic
+		const translations = await fetchFromAPI(locale);
+		return translations;
 	}
-};
+});
 ```
 
-### Type-Safe Translation Keys
+## 📋 API Reference
 
-The plugin generates TypeScript types for your translation keys:
+### Client-Side Exports
 
 ```typescript
-// Generated types
-type TranslationKeys = 'hello' | 'welcome' | 'goodbye';
+// From '@i18n'
+import * as t from '@i18n';
 
-// Usage with full type safety
-const message: TranslationKeys = 'hello'; // ✅ Valid
-const invalid: TranslationKeys = 'invalid'; // ❌ Type error
+// Individual translation functions (auto-generated)
+t.hello(): string
+t.welcome(name: string): string
+t.userCount(count: number): string
+t.nestedParams(params: { name: string; count: number }): string
 ```
 
-## Development
+### Helper Functions
 
-### Building the Library
+```typescript
+// From '$lib/helpers'
+import { getTData, r } from '$lib/helpers';
+
+// Get current translation data
+const translations = getTData();
+
+// Parameter replacement function
+const result = r('Hello {{name}}', { name: 'World' });
+```
+
+### Server-Side Exports
+
+```typescript
+// From 'sveltekit-translations-loader/server'
+import { TranslationsManager, injectTranslations } from 'sveltekit-translations-loader/server';
+
+// Translation manager for server-side operations
+const manager = new TranslationsManager(config);
+
+// Inject translations into load functions
+await injectTranslations(manager, locale, keys);
+```
+
+## 🛠️ Development
+
+### Prerequisites
+
+- Node.js 18+
+- SvelteKit 2.0+
+- TypeScript (recommended)
+
+### Building from Source
 
 ```bash
+# Clone the repository
+git clone https://github.com/yourusername/sveltekit-translations-loader.git
+
+# Install dependencies
+npm install
+
+# Build the library
 npm run build
-```
 
-### Running Tests
-
-```bash
+# Run tests
 npm run test:unit
-```
 
-### Type Checking
-
-```bash
+# Type checking
 npm run check
 ```
 
-## Contributing
+### Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
 
-## License
+## 📝 Changelog
 
-MIT License - see LICENSE file for details.
+### Latest Features
 
-## Support
+- ✨ **Build-Time Optimization**: New `removeFunctionsOnBuild` option for production performance
+- 🔧 **Automatic Import Management**: Smart import handling for development vs production
+- 📦 **Bundle Size Optimization**: Significant reduction in JavaScript bundle size
+- 🎯 **Direct Data Access**: Zero-overhead translation access in production
 
-- 📖 [Documentation](https://github.com/yourusername/sveltekit-translations-loader#readme)
-- 🐛 [Issues](https://github.com/yourusername/sveltekit-translations-loader/issues)
-- 💬 [Discussions](https://github.com/yourusername/sveltekit-translations-loader/discussions)
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🤝 Support
+
+- 📖 **Documentation**: [GitHub Repository](https://github.com/AntonPavlenkov/sveltekit-translations-loader)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/AntonPavlenkov/sveltekit-translations-loader/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/AntonPavlenkov/sveltekit-translations-loader/discussions)
+- ⭐ **Star on GitHub**: If you find this project useful!
+
+---
+
+**Made with ❤️ for the SvelteKit community**
