@@ -1,11 +1,11 @@
 import { getRequestEvent } from '$app/server';
 
 export function _getTranslations(loadFunctionKeys: string[] = []) {
-	const event = getRequestEvent();
+	const { locals } = getRequestEvent();
 
-	const allTranslations = event?.locals.translationsManager.getTranslations(event?.locals.locale);
+	const allTranslations = locals.translationsManager.getTranslations(locals.locale);
 	// Get accumulated translations from parent routes
-	const parentTranslations = event?.locals._translationsData || {};
+	const parentTranslations = locals._translationsData || {};
 
 	// Auto-injected translation keys based on usage
 	const currentTranslations = loadFunctionKeys
@@ -21,9 +21,9 @@ export function _getTranslations(loadFunctionKeys: string[] = []) {
 		: {};
 
 	// Merge with parent translations and extra keys
-	const extraKeys = event?.locals.extraKeys || {};
+	const extraKeys = locals.extraKeys || {};
 	const combinedTranslations = { ...parentTranslations, ...currentTranslations, ...extraKeys };
-	event.locals._translationsData = combinedTranslations;
+	locals._translationsData = combinedTranslations;
 
-	return event.locals._translationsData;
+	return locals._translationsData;
 }

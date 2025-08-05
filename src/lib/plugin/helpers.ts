@@ -1,5 +1,27 @@
 // Utility functions for the sveltekit-translations-loader plugin
 
+// Constants
+const ROUTE_FILE_PATTERNS = [
+	/\/\+page\.svelte$/,
+	/\/\+layout\.svelte$/,
+	/\/\+page\.server\.ts$/,
+	/\/\+layout\.server\.ts$/
+] as const;
+
+// Types
+interface TranslationEntry {
+	key: string;
+	value: string;
+	safeFunctionName: string;
+	hasPlaceholders: boolean;
+}
+
+interface TypeScriptDeclaration {
+	functionName: string;
+	hasParams: boolean;
+	description: string;
+}
+
 /**
  * Convert kebab-case or other formats to camelCase for function names
  */
@@ -8,17 +30,84 @@ export function sanitizeFunctionName(key: string): string {
 }
 
 /**
+ * Convert camelCase to kebab-case
+ */
+function camelToKebab(str: string): string {
+	return str.replace(/([A-Z])/g, '-$1').toLowerCase();
+}
+
+/**
+ * Convert kebab-case to camelCase
+ */
+function kebabToCamel(str: string): string {
+	return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+/**
+ * Check if a string has placeholder patterns
+ */
+function hasPlaceholders(value: string): boolean {
+	return value.includes('{{');
+}
+
+/**
+ * Create a safe function name from a translation key
+ */
+function createSafeFunctionName(key: string): string {
+	return sanitizeFunctionName(key);
+}
+
+/**
  * Convert file path to route path
  */
 export function getRoutePath(filePath: string, routesDir: string): string {
 	const relativePath = filePath.replace(routesDir, '').replace(/^\//, '');
-	const routePath = relativePath
-		.replace(/\/\+page\.svelte$/, '')
-		.replace(/\/\+layout\.svelte$/, '')
-		.replace(/\/\+page\.server\.ts$/, '')
-		.replace(/\/\+layout\.server\.ts$/, '');
+
+	// Remove route file patterns
+	const routePath = ROUTE_FILE_PATTERNS.reduce(
+		(path, pattern) => path.replace(pattern, ''),
+		relativePath
+	);
 
 	return routePath || '/';
+}
+
+/**
+ * Check if a key exists in available translations
+ */
+function keyExists(key: string, availableKeys: string[]): boolean {
+	return availableKeys.includes(key);
+}
+
+/**
+ * Find matching key variations
+ */
+function findKeyVariations(usedKey: string, availableKeys: string[]): string[] {
+	const matches: string[] = [];
+
+	// Check exact match
+	if (keyExists(usedKey, availableKeys)) {
+		matches.push(usedKey);
+		return matches;
+	}
+
+	// Check kebab-case variation
+	const kebabKey = camelToKebab(usedKey);
+	const kebabKeyTrimmed = kebabKey.startsWith('-') ? kebabKey.substring(1) : kebabKey;
+
+	if (keyExists(kebabKeyTrimmed, availableKeys)) {
+		matches.push(kebabKeyTrimmed);
+	}
+
+	// Check if any available key converts to this camelCase
+	for (const availableKey of availableKeys) {
+		const camelCaseKey = sanitizeFunctionName(availableKey);
+		if (camelCaseKey === usedKey) {
+			matches.push(availableKey);
+		}
+	}
+
+	return matches;
 }
 
 /**
@@ -32,30 +121,48 @@ export function resolveTranslationKeys(
 	const availableKeys = Object.keys(availableTranslations);
 
 	for (const usedKey of usedKeys) {
-		// Check if key exists as-is
-		if (availableKeys.includes(usedKey)) {
-			resolvedKeys.add(usedKey);
-		} else {
-			// Convert camelCase to kebab-case and check
-			const kebabKey = usedKey.replace(/([A-Z])/g, '-$1').toLowerCase();
-			const kebabKeyTrimmed = kebabKey.startsWith('-') ? kebabKey.substring(1) : kebabKey;
-
-			if (availableKeys.includes(kebabKeyTrimmed)) {
-				resolvedKeys.add(kebabKeyTrimmed);
-			}
-
-			// Also check if any available key converts to this camelCase
-			for (const availableKey of availableKeys) {
-				const camelCaseKey = sanitizeFunctionName(availableKey);
-				if (camelCaseKey === usedKey) {
-					resolvedKeys.add(availableKey);
-				}
-			}
-		}
+		const matches = findKeyVariations(usedKey, availableKeys);
+		matches.forEach((match) => resolvedKeys.add(match));
 	}
 
 	return resolvedKeys;
 }
+
+/**
+ * Create translation entry with metadata
+ */
+function createTranslationEntry(key: string, value: string): TranslationEntry {
+	return {
+		key,
+		value,
+		safeFunctionName: createSafeFunctionName(key),
+		hasPlaceholders: hasPlaceholders(value)
+	};
+}
+
+/**
+ * Replace function body in code
+ */
+function replaceFunctionBody(
+	code: string,
+	functionName: string,
+	escapedValue: string,
+	hasParams: boolean
+): string {
+	if (hasParams) {
+		// Replace parameterized function: const functionName = (params?: ...) => r("default value", params);
+		const parameterizedRegex = new RegExp(
+			`(const ${functionName} = \\(params\\?: Record<string, string \\| number>\\): string => r\\()([^,]+)(, params\\);)`,
+			'g'
+		);
+		return code.replace(parameterizedRegex, `$1${escapedValue}$3`);
+	} else {
+		// Replace simple function: const functionName = (): string => "default value";
+		const simpleRegex = new RegExp(`(const ${functionName} = \\(\\): string => )([^;]+)(;)`, 'g');
+		return code.replace(simpleRegex, `$1${escapedValue}$3`);
+	}
+}
+
 /**
  * Transform translation code based on locale and translations
  */
@@ -64,61 +171,95 @@ export function transformTranslationCode(
 	locale: string,
 	translations: Record<string, string>
 ): string {
-	// Replace translation values in the generated code based on locale
 	let transformedCode = code;
 
 	Object.entries(translations).forEach(([key, value]) => {
-		const safeFunctionName = sanitizeFunctionName(key);
+		const entry = createTranslationEntry(key, value);
 		const escapedValue = JSON.stringify(value);
 
-		// Replace function bodies with locale-specific translations
-		// Match: const functionName = (params?: ...) => r("default value", params);
-		const parameterizedRegex = new RegExp(
-			`(const ${safeFunctionName} = \\(params\\?: Record<string, string \\| number>\\): string => r\\()([^,]+)(, params\\);)`,
-			'g'
+		transformedCode = replaceFunctionBody(
+			transformedCode,
+			entry.safeFunctionName,
+			escapedValue,
+			entry.hasPlaceholders
 		);
-		transformedCode = transformedCode.replace(parameterizedRegex, `$1${escapedValue}$3`);
-
-		// Match: const functionName = (): string => "default value";
-		const simpleRegex = new RegExp(
-			`(const ${safeFunctionName} = \\(\\): string => )([^;]+)(;)`,
-			'g'
-		);
-		transformedCode = transformedCode.replace(simpleRegex, `$1${escapedValue}$3`);
 	});
 
 	return transformedCode;
 }
 
 /**
+ * Generate TypeScript declaration for a single translation
+ */
+function generateSingleDeclaration(entry: TranslationEntry): TypeScriptDeclaration {
+	return {
+		functionName: entry.safeFunctionName,
+		hasParams: entry.hasPlaceholders,
+		description: entry.value
+	};
+}
+
+/**
+ * Generate TypeScript declaration code
+ */
+function generateDeclarationCode(declaration: TypeScriptDeclaration): string {
+	const { functionName, hasParams, description } = declaration;
+	const paramType = hasParams ? '(params?: TranslationParams) => string' : '() => string';
+
+	return `/**
+ * @description ${description}
+ */
+export declare const ${functionName}: ${paramType};
+`;
+}
+
+/**
+ * Generate additional camelCase declarations for kebab-case keys
+ */
+function generateCamelCaseDeclarations(entry: TranslationEntry): TypeScriptDeclaration[] {
+	const camelKey = kebabToCamel(entry.key);
+
+	if (camelKey !== entry.key && camelKey !== entry.safeFunctionName) {
+		return [
+			{
+				functionName: camelKey,
+				hasParams: entry.hasPlaceholders,
+				description: entry.value
+			}
+		];
+	}
+
+	return [];
+}
+
+/**
  * Generate TypeScript declarations for translations
  */
 export function generateTypeScriptDeclarations(translationsData: Record<string, string>): string {
-	const entries = Object.entries(translationsData);
+	const entries = Object.entries(translationsData).map(([key, value]) =>
+		createTranslationEntry(key, value)
+	);
 
 	let code = '// Auto-generated TypeScript declarations\n';
 	code += 'interface TranslationParams {\n';
 	code += '\t[key: string]: string | number;\n';
 	code += '}\n\n';
 
-	// Generate individual export declarations
-	entries.forEach(([key, value]) => {
-		const safeFunctionName = sanitizeFunctionName(key);
-		const hasPlaceholders = value.includes('{{');
+	// Generate declarations for all entries
+	const allDeclarations: TypeScriptDeclaration[] = [];
 
-		code += `/**\n * @description ${value}\n */\n`;
+	entries.forEach((entry) => {
+		// Main declaration
+		allDeclarations.push(generateSingleDeclaration(entry));
 
-		if (hasPlaceholders) {
-			code += `export declare const ${safeFunctionName}: (params?: TranslationParams) => string;\n\n`;
-		} else {
-			code += `export declare const ${safeFunctionName}: () => string;\n\n`;
-		}
+		// Additional camelCase declarations
+		const camelDeclarations = generateCamelCaseDeclarations(entry);
+		allDeclarations.push(...camelDeclarations);
+	});
 
-		// Declare camelCase versions for kebab-case keys
-		const camelKey = key.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-		if (camelKey !== key && camelKey !== safeFunctionName) {
-			code += `export declare const ${camelKey}: ${hasPlaceholders ? '(params?: TranslationParams) => string' : '() => string'};\n\n`;
-		}
+	// Generate code for all declarations
+	allDeclarations.forEach((declaration) => {
+		code += generateDeclarationCode(declaration) + '\n';
 	});
 
 	return code;

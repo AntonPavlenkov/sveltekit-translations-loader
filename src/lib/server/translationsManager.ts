@@ -1,3 +1,4 @@
+// Types
 interface TranslationData {
 	[key: string]: string;
 }
@@ -6,99 +7,144 @@ interface LocaleTranslations {
 	[locale: string]: TranslationData;
 }
 
+type DefaultTranslationsInput =
+	| TranslationData
+	| (() => Promise<TranslationData>)
+	| Promise<{ default: TranslationData }>;
+
+type AvailableLocalesInput = (() => Promise<string[]>) | string[];
+
+type TranslationsForLocaleInput = ((locale: string) => Promise<TranslationData>) | TranslationData;
+
+interface TranslationsManagerConfig {
+	defaultTranslations: DefaultTranslationsInput;
+	getAvailableLocales: AvailableLocalesInput;
+	getTranslationsForLocale: TranslationsForLocaleInput;
+}
+
+// Constants
+const DEFAULT_LOCALE = 'en-US';
+const MINUTES_TO_MS = 60 * 1000;
+
+// Utility functions
+const isFunction = (value: unknown): value is (...args: unknown[]) => unknown =>
+	typeof value === 'function';
+const isPromise = (value: unknown): value is Promise<unknown> => value instanceof Promise;
+const hasContent = (obj: TranslationData): boolean => Object.keys(obj).length > 0;
+const clearIntervalSafely = (interval: NodeJS.Timeout | null): void => {
+	if (interval) clearInterval(interval);
+};
+const minutesToMs = (minutes: number): number => minutes * MINUTES_TO_MS;
+
+/**
+ * Resolve default translations from various input types
+ */
+async function resolveDefaultTranslations(
+	input: DefaultTranslationsInput
+): Promise<TranslationData> {
+	if (isFunction(input)) return await (input as () => Promise<TranslationData>)();
+	if (isPromise(input)) return (await input).default;
+	return input;
+}
+
+/**
+ * Resolve available locales from various input types
+ */
+async function resolveAvailableLocales(input: AvailableLocalesInput): Promise<string[]> {
+	return isFunction(input) ? await (input as () => Promise<string[]>)() : input;
+}
+
+/**
+ * Load translations for a single locale with error handling
+ */
+async function loadLocaleTranslations(
+	locale: string,
+	getTranslationsForLocale: TranslationsForLocaleInput,
+	defaultTranslations: TranslationData,
+	fallbackTranslations: TranslationData
+): Promise<TranslationData> {
+	try {
+		const translations = isFunction(getTranslationsForLocale)
+			? await (getTranslationsForLocale as (locale: string) => Promise<TranslationData>)(locale)
+			: (getTranslationsForLocale as TranslationData);
+		return hasContent(translations) ? translations : defaultTranslations;
+	} catch (error) {
+		console.warn(`⚠ Failed to load translations for ${locale}:`, error);
+		return fallbackTranslations;
+	}
+}
+
 export class TranslationsManager {
 	private isInitialized = false;
 	private translations: LocaleTranslations = {};
 	private updateInterval: NodeJS.Timeout | null = null;
-	private defaultLocale = 'en-US';
 	private supportedLocales: string[] = [];
 	private _defaultTranslations: TranslationData | null = null;
 
-	constructor(
-		private defaultTranslations:
-			| TranslationData
-			| (() => Promise<TranslationData>)
-			| Promise<{ default: TranslationData }>,
-		private getAvailableLocales: (() => Promise<string[]>) | string[],
-		private getTranslationsForLocale:
-			| ((locale: string) => Promise<TranslationData>)
-			| TranslationData
-	) {}
+	constructor(private config: TranslationsManagerConfig) {}
 
-	private async startPeriodicUpdates(onceInMinutes: number): Promise<void> {
+	/**
+	 * Start periodic updates for translations
+	 */
+	public async startPeriodicUpdates(onceInMinutes: number): Promise<void> {
 		this.updateInterval = setInterval(
-			async () => {
-				await this.loadAllTranslations();
-			},
-			onceInMinutes * 60 * 1000
+			async () => await this.loadAllTranslations(),
+			minutesToMs(onceInMinutes)
 		);
 	}
 
+	/**
+	 * Get translations for a specific locale with fallback logic
+	 */
 	getTranslations(locale: string): TranslationData {
-		console.log(
-			'🚀 ~ TranslationsManager ~ getTranslations ~ this.translations:',
-			this.translations,
-			locale
-		);
-		return this.translations[locale] || this.translations[this.defaultLocale] || {};
+		return this.translations[locale] || this.translations[DEFAULT_LOCALE] || {};
 	}
 
+	/**
+	 * Load translations for all supported locales
+	 */
 	private async loadAllTranslations(): Promise<void> {
+		const fallbackTranslations = this.translations[DEFAULT_LOCALE] || {};
+
 		for (const locale of this.supportedLocales) {
-			try {
-				const translations =
-					typeof this.getTranslationsForLocale === 'function'
-						? await this.getTranslationsForLocale(locale)
-						: this.getTranslationsForLocale;
-				if (Object.keys(translations).length > 0) {
-					this.translations[locale] = translations;
-				} else {
-					this.translations[locale] = this._defaultTranslations || {};
-				}
-			} catch (error) {
-				console.warn(`⚠ Failed to load translations for ${locale}:`, error);
-				this.translations[locale] = this.translations[this.defaultLocale];
-			}
+			const translations = await loadLocaleTranslations(
+				locale,
+				this.config.getTranslationsForLocale,
+				this._defaultTranslations || {},
+				fallbackTranslations
+			);
+			this.translations[locale] = translations;
 		}
-		console.log('Finished loading translations');
 	}
 
+	/**
+	 * Initialize the translations manager
+	 */
 	async initialize(): Promise<void> {
 		if (this.isInitialized) return;
 		this.isInitialized = true;
 
-		this.supportedLocales =
-			typeof this.getAvailableLocales === 'function'
-				? await this.getAvailableLocales()
-				: this.getAvailableLocales;
-		console.log(
-			'🚀 ~ TranslationsManager ~ initialize ~ this.supportedLocales:',
-			this.supportedLocales
-		);
+		// Resolve available locales and default translations
+		this.supportedLocales = await resolveAvailableLocales(this.config.getAvailableLocales);
+		this._defaultTranslations = await resolveDefaultTranslations(this.config.defaultTranslations);
 
-		if (typeof this.defaultTranslations === 'function') {
-			this._defaultTranslations = await this.defaultTranslations();
-		} else if (this.defaultTranslations instanceof Promise) {
-			const module = await this.defaultTranslations;
-			this._defaultTranslations = module.default;
-		} else {
-			this._defaultTranslations = this.defaultTranslations;
-		}
-
-		this.translations[this.defaultLocale] = this._defaultTranslations;
-
-		// Load translations for all supported locales
+		// Set default locale translations and load all translations
+		this.translations[DEFAULT_LOCALE] = this._defaultTranslations;
 		await this.loadAllTranslations();
 	}
 
+	/**
+	 * Get all supported locales
+	 */
 	getLocales(): string[] {
 		return this.supportedLocales;
 	}
 
+	/**
+	 * Clean up resources
+	 */
 	destroy(): void {
-		if (this.updateInterval) {
-			clearInterval(this.updateInterval);
-		}
+		clearIntervalSafely(this.updateInterval);
 		this.translations = {};
 		this.updateInterval = null;
 		this.supportedLocales = [];

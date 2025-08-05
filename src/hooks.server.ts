@@ -2,11 +2,11 @@ import { TranslationsManager } from 'sveltekit-translations-loader/server';
 
 import type { Handle } from '@sveltejs/kit';
 
-const translationsManager = new TranslationsManager(
-	import('./types/default-translations'),
-	['en-US', 'de-DE', 'es-ES', 'fr-FR'],
+const translationsManager = new TranslationsManager({
+	defaultTranslations: import('./types/default-translations'),
+	getAvailableLocales: ['en-US', 'de-DE', 'es-ES', 'fr-FR'],
 	getTranslationsForLocale
-);
+});
 
 export const handle: Handle = async ({ event, resolve }) => {
 	await translationsManager.initialize();

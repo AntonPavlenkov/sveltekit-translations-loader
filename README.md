@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![SvelteKit](https://img.shields.io/badge/SvelteKit-5.0+-orange.svg)](https://kit.svelte.dev/)
 
-A powerful, intelligent translation system for SvelteKit with automatic type generation, runtime injection, tree-shaking, and build-time optimizations. Designed for maximum performance and developer experience.
+A powerful, intelligent translation system for SvelteKit with automatic type generation, runtime injection, tree-shaking, and build-time optimizations. Designed for maximum performance and developer experience with a highly optimized, modular codebase.
 
 ## ✨ Key Features
 
@@ -36,6 +36,13 @@ A powerful, intelligent translation system for SvelteKit with automatic type gen
 - **Parameter Interpolation**: Smart handling of translation parameters
 - **Nested Route Inheritance**: Automatic translation inheritance in nested routes
 - **Runtime Locale Switching**: Dynamic language switching
+
+### 🏗️ **Optimized Architecture**
+
+- **Modular Design**: Highly modular codebase with clear separation of concerns
+- **Reusable Components**: Shared utilities and helper functions across modules
+- **Type Safety**: Comprehensive TypeScript interfaces and type guards
+- **Maintainable Code**: Well-organized, testable, and extensible architecture
 
 ## 📦 Installation
 
@@ -91,8 +98,12 @@ import { TranslationsManager } from 'sveltekit-translations-loader/server';
 import type { Handle } from '@sveltejs/kit';
 
 const translationsManager = new TranslationsManager({
-	defaultLocale: 'en-US',
-	supportedLocales: ['en-US', 'de-DE', 'es-ES', 'fr-FR']
+	defaultTranslations: defaultTranslations,
+	getAvailableLocales: ['en-US', 'de-DE', 'es-ES', 'fr-FR'],
+	getTranslationsForLocale: async (locale) => {
+		// Custom translation loading logic
+		return await loadTranslationsForLocale(locale);
+	}
 });
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -153,18 +164,21 @@ interface PluginConfig {
 }
 ```
 
-### TranslationsManager Options
+### TranslationsManager Configuration
 
 ```typescript
 interface TranslationsManagerConfig {
-	/** Default locale to use */
-	defaultLocale: string;
+	/** Default translations or function to load them */
+	defaultTranslations:
+		| TranslationData
+		| (() => Promise<TranslationData>)
+		| Promise<{ default: TranslationData }>;
 
-	/** Array of supported locales */
-	supportedLocales: string[];
+	/** Available locales or function to get them */
+	getAvailableLocales: (() => Promise<string[]>) | string[];
 
-	/** Optional custom translation loader */
-	translationLoader?: (locale: string) => Promise<Record<string, string>>;
+	/** Function to get translations for a specific locale */
+	getTranslationsForLocale: ((locale: string) => Promise<TranslationData>) | TranslationData;
 }
 ```
 
@@ -288,6 +302,44 @@ export default {
 - **Optimized Parameter Handling**: Automatic parameter object creation
 - **Tree-Shaking**: Only used translation keys are included
 
+## 🏗️ Architecture & Code Quality
+
+### Modular Design
+
+The codebase has been optimized with a highly modular architecture:
+
+- **Separated Concerns**: Each module has a single, clear responsibility
+- **Reusable Components**: Shared utilities and helper functions
+- **Type Safety**: Comprehensive TypeScript interfaces and type guards
+- **Maintainable Code**: Well-organized, testable, and extensible
+
+### Key Optimizations
+
+- **Extracted Constants**: Reusable patterns and values centralized
+- **Helper Functions**: Small, focused utility functions for common operations
+- **Type Definitions**: Proper TypeScript interfaces for all data structures
+- **Error Handling**: Consistent error handling patterns across modules
+- **Resource Management**: Safe cleanup and resource management
+
+### Code Organization
+
+```
+src/lib/
+├── plugin/           # Vite plugin components
+│   ├── index.ts     # Main plugin orchestrator
+│   ├── helpers.ts   # Shared utility functions
+│   ├── scanner.ts   # File scanning and analysis
+│   ├── function-generator.ts  # Translation function generation
+│   ├── load-function-updater.ts  # Load function injection
+│   ├── svelte-transformer.ts  # Svelte file transformation
+│   └── type-generator.ts  # TypeScript declaration generation
+├── server/          # Server-side components
+│   ├── translationsManager.ts  # Translation management
+│   └── translations-injector.ts  # Server-side injection
+└── helpers/         # Client-side utilities
+    └── utils.ts     # Runtime helper functions
+```
+
 ## 🔧 Advanced Usage
 
 ### Custom Parameter Types
@@ -315,9 +367,9 @@ t.nestedParams({ name: 'Bob', count: 5 });
 
 ```typescript
 const manager = new TranslationsManager({
-	defaultLocale: 'en-US',
-	supportedLocales: ['en-US', 'custom'],
-	translationLoader: async (locale) => {
+	defaultTranslations: defaultTranslations,
+	getAvailableLocales: ['en-US', 'custom'],
+	getTranslationsForLocale: async (locale) => {
 		// Custom loading logic
 		const translations = await fetchFromAPI(locale);
 		return translations;
@@ -403,12 +455,25 @@ npm run check
 
 ## 📝 Changelog
 
-### Latest Features
+### Latest Features & Optimizations
 
 - ✨ **Build-Time Optimization**: New `removeFunctionsOnBuild` option for production performance
 - 🔧 **Automatic Import Management**: Smart import handling for development vs production
 - 📦 **Bundle Size Optimization**: Significant reduction in JavaScript bundle size
 - 🎯 **Direct Data Access**: Zero-overhead translation access in production
+- 🏗️ **Modular Architecture**: Highly optimized, maintainable codebase
+- 🔄 **Code Refactoring**: Improved separation of concerns and reusability
+- 🛡️ **Enhanced Type Safety**: Comprehensive TypeScript interfaces and type guards
+- 📚 **Better Documentation**: Updated examples and configuration options
+
+### Recent Optimizations
+
+- **Extracted Constants**: Centralized reusable patterns and values
+- **Helper Functions**: Small, focused utility functions for common operations
+- **Type Definitions**: Proper TypeScript interfaces for all data structures
+- **Error Handling**: Consistent error handling patterns across modules
+- **Resource Management**: Safe cleanup and resource management
+- **Code Organization**: Clear separation of concerns and modularity
 
 ## 📄 License
 

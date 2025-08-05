@@ -5,7 +5,7 @@
 declare module '@i18n' {
 	// Re-export all translation functions
 	export * from './index.ts';
-	
+
 	// Namespace for t.hello() syntax
 	export const t: {
 		/**
@@ -53,7 +53,7 @@ declare module '@i18n' {
 		 */
 		pageContent: () => string;
 	};
-	
+
 	// Individual function exports
 	/**
 	 * Hello (default)
