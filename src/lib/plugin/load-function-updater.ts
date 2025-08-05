@@ -122,13 +122,14 @@ function extractReturnContent(loadFunctionCode: string): string {
 /**
  * Generate the auto-generated code block with proper import path
  */
-function generateTranslationsCode(keysArray: string[]): string {
+function generateTranslationsCode(keysArray: string[], isDevelopment: boolean = false): string {
+	const importPath = isDevelopment ? '$lib/server' : 'sveltekit-translations-loader/server';
+
 	return `${AUTO_GENERATED_MARKERS.START}
 ${AUTO_GENERATED_MARKERS.HEADER}
-import { _getTranslations } from 'sveltekit-translations-loader/server';
+import { _getTranslations } from '${importPath}';
 const _translationKeys: string[] = [${keysArray.map((key) => `'${key}'`).join(', ')}];
 ${AUTO_GENERATED_MARKERS.END}
-${AUTO_GENERATED_MARKERS.START}
 `;
 }
 
@@ -136,12 +137,12 @@ ${AUTO_GENERATED_MARKERS.START}
  * Create load function code
  */
 function createLoadFunction(config: LoadFunctionConfig): string {
-	const { loadType, existingReturnContent } = config;
+	const { existingReturnContent } = config;
 	const returnContent = existingReturnContent
 		? `${existingReturnContent},\n\t\t_loadedTranslations: _getTranslations(_translationKeys)`
 		: `_loadedTranslations: _getTranslations(_translationKeys)`;
 
-	return `export const load: ${loadType} = async () => {
+	return `export const load = async () => {
 	return {
 		${returnContent}
 	};
@@ -272,35 +273,53 @@ function injectLoadedTranslations(loadFunctionCode: string): string {
 		return loadFunctionCode;
 	}
 
-	// Find the return statement and inject _loadedTranslations
-	// Use a more specific regex that matches only actual return statements
-	// This regex matches both single-line and multi-line return statements
-	const returnRegex = /^(\s*)return\s*\{([\s\S]*?)\}(\s*;?)(\s*)$/gm;
-	const modifiedCode = loadFunctionCode.replace(
-		returnRegex,
-		(match, indent, returnContent, semicolon, trailing) => {
-			// Split the return content into lines to handle multi-line objects
-			const lines = returnContent.split('\n');
-			const lastLine = lines[lines.length - 1];
-			const trimmedLastLine = lastLine.trim();
+	// Split the code into lines to process load functions specifically
+	const lines = loadFunctionCode.split('\n');
+	let inLoadFunction = false;
+	const modifiedLines: string[] = [];
 
-			// Check if the last line ends with a comma
-			const hasComma = trimmedLastLine.endsWith(',');
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const trimmedLine = line.trim();
 
-			// Add _loadedTranslations to the last line
-			const newLastLine = hasComma
-				? `${lastLine} _loadedTranslations: _getTranslations(_translationKeys)`
-				: `${lastLine}, _loadedTranslations: _getTranslations(_translationKeys)`;
-
-			// Reconstruct the return content
-			lines[lines.length - 1] = newLastLine;
-			const newReturnContent = lines.join('\n');
-
-			return `${indent}return { ${newReturnContent} }${semicolon}${trailing}`;
+		// Check if we're entering a load function
+		if (trimmedLine.startsWith('export const load') && trimmedLine.includes('async')) {
+			inLoadFunction = true;
+			modifiedLines.push(line);
+			continue;
 		}
-	);
 
-	return modifiedCode;
+		// Check if we're exiting a load function
+		if (inLoadFunction && trimmedLine === '}') {
+			inLoadFunction = false;
+			modifiedLines.push(line);
+			continue;
+		}
+
+		// If we're inside a load function and this is a return statement
+		if (inLoadFunction && trimmedLine.startsWith('return {')) {
+			// Check if the return object is empty
+			if (trimmedLine.includes('return {}') || trimmedLine.includes('return { }')) {
+				modifiedLines.push(
+					line.replace(
+						/return\s*\{\s*\}/,
+						'return { _loadedTranslations: _getTranslations(_translationKeys) }'
+					)
+				);
+			} else {
+				// Check if the line ends with a comma
+				const hasComma = line.trim().endsWith(',');
+				const newLine = hasComma
+					? line.replace(/,\s*$/, ', _loadedTranslations: _getTranslations(_translationKeys)')
+					: line.replace(/\s*$/, ', _loadedTranslations: _getTranslations(_translationKeys)');
+				modifiedLines.push(newLine);
+			}
+		} else {
+			modifiedLines.push(line);
+		}
+	}
+
+	return modifiedLines.join('\n');
 }
 
 /**
@@ -311,17 +330,15 @@ export function injectTranslationKeys(
 	usedKeys: Set<string>,
 	routePath: string,
 	defaultPath: string,
-	verbose: boolean = false
+	verbose: boolean = false,
+	isDevelopment: boolean = false
 ): void {
 	if (verbose) {
 		console.log(`🔧 injectTranslationKeys called for: ${serverFilePath}`);
 	}
 
 	const keysArray = Array.from(usedKeys);
-	const isLayoutFile = serverFilePath.includes('+layout.server.ts');
-	const loadType = isLayoutFile ? 'LayoutServerLoad' : 'PageServerLoad';
-	const requiredImports = [`import type { ${loadType} } from './$types.js';`];
-	const generatedCode = generateTranslationsCode(keysArray);
+	const generatedCode = generateTranslationsCode(keysArray, isDevelopment);
 
 	let finalContent: string;
 
@@ -334,26 +351,50 @@ export function injectTranslationKeys(
 
 		// Check if load function already exists
 		if (existingContent.includes('export const load')) {
-			// Add imports and generated code if not already present
+			// Always update the generated code block with new keys
 			let newContent = existingContent;
 
-			// Add imports if not present
-			if (!newContent.includes('_getTranslations')) {
-				const importIndex = newContent.lastIndexOf('import');
-				const insertIndex = newContent.indexOf('\n', importIndex) + 1;
-				newContent =
-					newContent.slice(0, insertIndex) + generatedCode + '\n' + newContent.slice(insertIndex);
-			}
+			// Replace existing auto-generated code block if it exists
+			const autoGeneratedStart = newContent.indexOf(AUTO_GENERATED_MARKERS.START);
+			const autoGeneratedEnd = newContent.indexOf(AUTO_GENERATED_MARKERS.END);
 
-			// Add type import if not present
-			if (!newContent.includes(loadType)) {
-				const importIndex = newContent.lastIndexOf('import');
-				const insertIndex = newContent.indexOf('\n', importIndex) + 1;
-				newContent =
-					newContent.slice(0, insertIndex) +
-					requiredImports.join('\n') +
-					'\n' +
-					newContent.slice(insertIndex);
+			if (autoGeneratedStart !== -1 && autoGeneratedEnd !== -1) {
+				// Remove existing auto-generated code block and any duplicate markers
+				const beforeBlock = newContent.substring(0, autoGeneratedStart);
+				const afterBlock = newContent.substring(
+					autoGeneratedEnd + AUTO_GENERATED_MARKERS.END.length
+				);
+
+				// Clean up any duplicate markers in the after block
+				const cleanedAfterBlock = afterBlock.replace(
+					new RegExp(`\\s*${AUTO_GENERATED_MARKERS.START}\\s*`, 'g'),
+					''
+				);
+
+				newContent = beforeBlock + generatedCode + cleanedAfterBlock;
+			} else {
+				// Add new auto-generated code block at the top level
+				// Find the first non-import, non-comment line to insert before
+				const lines = newContent.split('\n');
+				let insertIndex = 0;
+
+				for (let i = 0; i < lines.length; i++) {
+					const line = lines[i].trim();
+					// Skip empty lines, imports, and comments
+					if (
+						line &&
+						!line.startsWith('import') &&
+						!line.startsWith('//') &&
+						!line.startsWith('/*')
+					) {
+						insertIndex = i;
+						break;
+					}
+				}
+
+				// Insert the generated code before the first non-import line
+				lines.splice(insertIndex, 0, generatedCode);
+				newContent = lines.join('\n');
 			}
 
 			// Inject _loadedTranslations into existing load function
@@ -363,13 +404,13 @@ export function injectTranslationKeys(
 		} else {
 			// Create new load function
 			const loadFunctionConfig: LoadFunctionConfig = {
-				loadType,
+				loadType: '',
 				existingReturnContent: ''
 			};
 
 			finalContent = buildFileContent(
 				{ imports: [], customCode: [] },
-				requiredImports,
+				[],
 				generatedCode,
 				loadFunctionConfig
 			);
@@ -377,22 +418,19 @@ export function injectTranslationKeys(
 	} else {
 		// Create new file
 		const loadFunctionConfig: LoadFunctionConfig = {
-			loadType,
+			loadType: '',
 			existingReturnContent: ''
 		};
 
-		finalContent =
-			requiredImports.join('\n') +
-			'\n' +
-			generatedCode +
-			'\n\n' +
-			createLoadFunction(loadFunctionConfig);
+		finalContent = generatedCode + '\n\n' + createLoadFunction(loadFunctionConfig);
 	}
 
 	// Check if content has actually changed before writing
 	if (!hasContentChanged(serverFilePath, finalContent)) {
 		if (verbose) {
-			const fileType = isLayoutFile ? '+layout.server.ts' : '+page.server.ts';
+			const fileType = serverFilePath.includes('+layout.server.ts')
+				? '+layout.server.ts'
+				: '+page.server.ts';
 			console.log(`⏭️  Skipping ${fileType} for route ${routePath} - no changes detected`);
 		}
 		return;
@@ -409,7 +447,9 @@ export function injectTranslationKeys(
 		});
 
 	if (verbose) {
-		const fileType = isLayoutFile ? '+layout.server.ts' : '+page.server.ts';
+		const fileType = serverFilePath.includes('+layout.server.ts')
+			? '+layout.server.ts'
+			: '+page.server.ts';
 		const action = existsSync(serverFilePath) ? 'Updated' : 'Created';
 		console.log(
 			`✅ ${action} ${fileType} for route ${routePath} with ${keysArray.length} translation keys`

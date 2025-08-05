@@ -96,12 +96,10 @@ async function loadDefaultTranslations(defaultPath: string): Promise<Record<stri
  * Check if file should trigger reprocessing
  */
 function shouldReprocessFile(file: string, defaultPath: string): boolean {
-	// Skip generated, temporary, or server files to prevent loops
+	// Skip generated, temporary, or system files to prevent loops
 	if (
 		file.includes('.svelte-kit/') ||
 		file.includes('node_modules/') ||
-		file.includes('+page.server.ts') ||
-		file.includes('+layout.server.ts') ||
 		file.includes('.tmp') ||
 		file.includes('.bak') ||
 		file.includes('~') ||
@@ -111,7 +109,8 @@ function shouldReprocessFile(file: string, defaultPath: string): boolean {
 		return false;
 	}
 
-	// Only reprocess on changes to translation files or specific .svelte files that use i18n
+	// Process translation files and .svelte files in routes directory
+	// Note: We don't exclude server files anymore as they need to be updated when components change
 	return file.includes(defaultPath) || (file.includes(ROUTES_DIR) && file.endsWith('.svelte'));
 }
 
@@ -148,7 +147,8 @@ async function processRouteHierarchy(
 	pageUsages: ReturnType<typeof findPageTranslationUsage>,
 	defaultTranslations: Record<string, string>,
 	defaultPath: string,
-	verbose: boolean
+	verbose: boolean,
+	isDevelopment: boolean
 ): Promise<void> {
 	// Build route hierarchy to handle nested routes properly
 	const routeHierarchy = buildRouteHierarchy(pageUsages);
@@ -162,7 +162,7 @@ async function processRouteHierarchy(
 			console.log(`📝 Resolved keys for route ${routePath}:`, Array.from(resolvedKeys));
 		}
 
-		injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose);
+		injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose, isDevelopment);
 	}
 }
 
@@ -222,7 +222,13 @@ async function processTranslations(
 	}
 
 	// Process route hierarchy and inject translation keys
-	await processRouteHierarchy(pageUsages, state.defaultTranslations, defaultPath, verbose);
+	await processRouteHierarchy(
+		pageUsages,
+		state.defaultTranslations,
+		defaultPath,
+		verbose,
+		state.isDevelopment
+	);
 }
 
 /**
@@ -264,17 +270,20 @@ function setupFileWatcher(
 	processTranslationsFn: () => Promise<void>,
 	verbose: boolean
 ): void {
-	// Watch only the default translations file, not entire directories
+	// Watch the default translations file
 	server.watcher.add(resolve(defaultPath));
 
-	// Don't watch the entire routes directory - let Vite handle .svelte file changes
-	// This prevents watching generated files and reduces unnecessary triggers
+	// Watch the routes directory for .svelte file changes
+	const routesDir = resolve(ROUTES_DIR);
+	if (existsSync(routesDir)) {
+		server.watcher.add(routesDir);
+	}
 
 	// Create debounced processor
 	const debouncedProcessor = createDebouncedProcessor(state, processTranslationsFn, verbose);
 
 	server.watcher.on('change', async (file: string) => {
-		// Apply strict filtering to prevent unnecessary reprocessing
+		// Apply filtering to prevent unnecessary reprocessing
 		if (shouldReprocessFile(file, defaultPath)) {
 			// Check if this is a translation file change or svelte file change
 			const isTranslationFile = file.includes(defaultPath);
@@ -310,7 +319,7 @@ function setupFileWatcher(
 		}
 	});
 
-	// Also listen to Vite's file changes for .svelte files specifically
+	// Listen to new file additions
 	server.watcher.on('add', async (file: string) => {
 		if (
 			file.endsWith('.svelte') &&
@@ -338,6 +347,21 @@ function setupFileWatcher(
 				console.log(`➕ New .svelte file detected: ${basename(file)}, scheduling usage rescan...`);
 			}
 			// Force usage rescan for new .svelte files
+			debouncedProcessor(true);
+		}
+	});
+
+	// Listen to file deletions (in case a component is removed)
+	server.watcher.on('unlink', async (file: string) => {
+		if (
+			file.endsWith('.svelte') &&
+			file.includes(ROUTES_DIR) &&
+			shouldReprocessFile(file, defaultPath)
+		) {
+			if (verbose) {
+				console.log(`🗑️  .svelte file removed: ${basename(file)}, scheduling usage rescan...`);
+			}
+			// Force usage rescan when .svelte files are removed
 			debouncedProcessor(true);
 		}
 	});

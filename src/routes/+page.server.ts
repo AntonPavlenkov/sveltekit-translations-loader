@@ -1,7 +1,7 @@
 import type { PageServerLoad } from './$types.js';
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
-import { _getTranslations } from 'sveltekit-translations-loader/server';
+import { _getTranslations } from '$lib/server';
 const _translationKeys: string[] = [
 	'pageTitle',
 	'hello',
@@ -12,7 +12,6 @@ const _translationKeys: string[] = [
 	'layoutDescription'
 ];
 // END AUTO-GENERATED CODE
-// =============================================================================
 
 const customFunction = () => {
 	return 'This is custom code that should be preserved';

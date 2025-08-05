@@ -7,7 +7,7 @@
 		<h1>{t.layoutTitle()}</h1>
 		<p>{t.layoutDescription()}</p>
 		<p>{t.hello()}</p>
-		<p>{t.hey('Joh    n')}</p>
+		<p>{t.hey('John')}</p>
 	</header>
 
 	<main>

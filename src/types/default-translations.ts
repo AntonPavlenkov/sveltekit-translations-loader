@@ -9,7 +9,8 @@ const defaultTranslations = {
 	layoutTitle: 'Nested Layout Title',
 	layoutDescription: 'This is a layout description that will be inherited by child routes',
 	pageTitle: 'Nested Page Title',
-	pageContent: 'This page content demonstrates nested route translation inheritance'
+	pageContent: 'This page content demonstrates nested route translation inheritance',
+
 } as const;
 
 export default defaultTranslations;

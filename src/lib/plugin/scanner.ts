@@ -11,8 +11,10 @@ export interface ViteConfig {
 }
 
 // Constants
-const TRANSLATION_IMPORT_PATTERN =
-	/import\s+\{[^}]*\}\s+from\s+['"]sveltekit-translations-loader['"]/;
+const TRANSLATION_IMPORT_PATTERNS = [
+	/import\s+\{[^}]*\}\s+from\s+['"]@i18n['"]/g, // import { t } from '@i18n'
+	/import\s+\*\s+as\s+\w+\s+from\s+['"]@i18n['"]/g // import * as t from '@i18n'
+] as const;
 
 const TRANSLATION_USAGE_PATTERNS = [
 	/\bt\.([a-zA-Z][a-zA-Z0-9]*)\s*\(/g, // t.hello()
@@ -147,7 +149,7 @@ function addKeyVariants(usedKeys: Set<string>, key: string): void {
  * Check if file has translation import
  */
 function hasTranslationImport(content: string): boolean {
-	return TRANSLATION_IMPORT_PATTERN.test(content);
+	return TRANSLATION_IMPORT_PATTERNS.some((pattern) => pattern.test(content));
 }
 
 /**

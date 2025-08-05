@@ -1,7 +1,6 @@
-import type { LayoutServerLoad } from './$types.js';
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
-import { _getTranslations } from 'sveltekit-translations-loader/server';
+import { _getTranslations } from '$lib/server';
 const _translationKeys: string[] = [
 	'layoutTitle',
 	'layoutDescription',
@@ -13,10 +12,7 @@ const _translationKeys: string[] = [
 	'zap'
 ];
 // END AUTO-GENERATED CODE
-// =============================================================================
 
-export const load: LayoutServerLoad = async () => {
-	return {
-		_loadedTranslations: _getTranslations(_translationKeys)
-	};
+export const load = async () => {
+	return { _loadedTranslations: _getTranslations(_translationKeys) };
 };
