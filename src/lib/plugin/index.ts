@@ -6,7 +6,7 @@ import type { Plugin } from 'vite';
 import { generateTranslations } from './function-generator.js';
 import { resolveTranslationKeys, transformTranslationCode } from './helpers.js';
 import { injectTranslationKeys } from './load-function-updater.js';
-import { buildRouteHierarchy, findPageTranslationUsage } from './scanner.js';
+import { buildRouteHierarchy, findPageTranslationUsage, setViteConfig } from './scanner.js';
 import { transformSvelteContent } from './svelte-transformer.js';
 import { generateTypeDeclarations } from './type-generator.js';
 
@@ -44,11 +44,16 @@ interface PluginState {
 	processingTimeout: NodeJS.Timeout | null;
 	lastProcessedFiles: Set<string>;
 	translationsHash: string;
+	viteConfig: BuildConfig; // Store Vite config for alias resolution
 }
 
 interface BuildConfig {
 	command: string;
 	mode: string;
+	alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
+	resolve?: {
+		alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
+	};
 }
 
 interface TransformOptions {
@@ -419,7 +424,8 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 		defaultTranslations: {},
 		processingTimeout: null,
 		lastProcessedFiles: new Set(),
-		translationsHash: ''
+		translationsHash: '',
+		viteConfig: { command: '', mode: '' } // Initialize viteConfig
 	};
 
 	// Create processTranslations function with current state
@@ -432,6 +438,10 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 		configResolved(config: BuildConfig) {
 			// Detect if we're in production build mode
 			state.isBuildMode = config.command === 'build' && config.mode === 'production';
+			state.viteConfig = config; // Store Vite config
+
+			// Set Vite config for alias resolution in scanner
+			setViteConfig(config);
 
 			if (verbose) {
 				console.log(

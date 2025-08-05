@@ -2,6 +2,14 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { getRoutePath, requiresSafeAccess } from './helpers.js';
 
+// Types
+export interface ViteConfig {
+	alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
+	resolve?: {
+		alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
+	};
+}
+
 // Constants
 const TRANSLATION_IMPORT_PATTERN =
 	/import\s+\{[^}]*\}\s+from\s+['"]sveltekit-translations-loader['"]/;
@@ -38,6 +46,53 @@ const ROUTE_FILES = {
 	PAGE_SERVER: '+page.server.ts',
 	LAYOUT_SERVER: '+layout.server.ts'
 } as const;
+
+// Global variable to store Vite config for alias resolution
+let globalViteConfig: ViteConfig = {};
+
+/**
+ * Set Vite config for alias resolution
+ */
+export function setViteConfig(config: ViteConfig): void {
+	globalViteConfig = config;
+}
+
+/**
+ * Resolve import alias using Vite config
+ */
+function resolveAlias(importPath: string): string {
+	// Check if it's an alias that needs resolution
+	if (importPath.startsWith('./') || importPath.startsWith('../') || importPath.startsWith('/')) {
+		return importPath; // Not an alias
+	}
+
+	// Get aliases from Vite config
+	const aliases = globalViteConfig.alias || globalViteConfig.resolve?.alias;
+	if (!aliases) {
+		return importPath;
+	}
+
+	// Handle array format: [{ find: '@variants', replacement: 'src/variants' }]
+	if (Array.isArray(aliases)) {
+		for (const alias of aliases) {
+			if (typeof alias.find === 'string' && importPath.startsWith(alias.find)) {
+				return importPath.replace(alias.find, alias.replacement);
+			} else if (alias.find instanceof RegExp && alias.find.test(importPath)) {
+				return importPath.replace(alias.find, alias.replacement);
+			}
+		}
+	}
+	// Handle object format: { '@variants': 'src/variants' }
+	else if (typeof aliases === 'object') {
+		for (const [alias, replacement] of Object.entries(aliases)) {
+			if (importPath.startsWith(alias)) {
+				return importPath.replace(alias, replacement);
+			}
+		}
+	}
+
+	return importPath;
+}
 
 // Types
 export interface PageTranslationUsage {
@@ -150,14 +205,20 @@ export function scanTranslationUsage(filePath: string): Set<string> {
  * Resolve import path
  */
 function resolveImportPath(importPath: string, basePath: string): string {
-	if (importPath.startsWith('./') || importPath.startsWith('../')) {
-		return resolve(basePath, importPath);
-	} else if (importPath.startsWith('$lib/')) {
+	// First resolve any Vite aliases
+	const resolvedAlias = resolveAlias(importPath);
+
+	if (resolvedAlias.startsWith('./') || resolvedAlias.startsWith('../')) {
+		return resolve(basePath, resolvedAlias);
+	} else if (resolvedAlias.startsWith('$lib/')) {
 		// Handle $lib alias
-		return resolve('src/lib', importPath.substring(5));
+		return resolve(process.cwd(), resolvedAlias);
+	} else if (resolvedAlias.startsWith('src/')) {
+		// Handle resolved aliases that point to src/
+		return resolve(process.cwd(), resolvedAlias);
 	}
 
-	return importPath;
+	return resolvedAlias;
 }
 
 /**
