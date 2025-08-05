@@ -9,7 +9,10 @@ const _translationKeys: string[] = [
 	'pageTitle',
 	'pageContent',
 	'nested-params',
-	'zap'
+	'goodbye',
+	'zap',
+	'welcome',
+	'user-count'
 ];
 // END AUTO-GENERATED CODE
 

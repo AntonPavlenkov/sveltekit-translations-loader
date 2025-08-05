@@ -6,6 +6,7 @@
 <div>
 	<h3>Nested Component One</h3>
 	<p>{t.nestedParams({ name: 'John', count: 42 })}</p>
+	<p>{t.goodbye()}</p>
 </div>
 
 <NestedComponentTwo />

@@ -276,7 +276,11 @@ export function parseImports(filePath: string): string[] {
 /**
  * Recursively scan a component and all its dependencies
  */
-export function scanComponentTree(filePath: string, visited = new Set<string>()): Set<string> {
+export function scanComponentTree(
+	filePath: string,
+	visited = new Set<string>(),
+	verbose = false
+): Set<string> {
 	const allKeys = new Set<string>();
 
 	// Avoid circular dependencies
@@ -289,10 +293,24 @@ export function scanComponentTree(filePath: string, visited = new Set<string>())
 	const keysFromThisFile = scanTranslationUsage(filePath);
 	keysFromThisFile.forEach((key) => allKeys.add(key));
 
+	if (verbose && keysFromThisFile.size > 0) {
+		console.log(
+			`🔍 Found ${keysFromThisFile.size} keys in ${filePath.replace(process.cwd(), '.')}:`,
+			Array.from(keysFromThisFile)
+		);
+	}
+
 	// Parse and scan all imported components
 	const imports = parseImports(filePath);
+	if (verbose && imports.length > 0) {
+		console.log(
+			`📦 Scanning ${imports.length} imports in ${filePath.replace(process.cwd(), '.')}:`,
+			imports.map((p) => p.replace(process.cwd(), '.'))
+		);
+	}
+
 	for (const importPath of imports) {
-		const keysFromImport = scanComponentTree(importPath, visited);
+		const keysFromImport = scanComponentTree(importPath, visited, verbose);
 		keysFromImport.forEach((key) => allKeys.add(key));
 	}
 
@@ -333,9 +351,13 @@ function createRouteFile(fullPath: string, routesDir: string): RouteFile | null 
 /**
  * Process route file and add to pages if it has translations
  */
-function processRouteFile(routeFile: RouteFile, pages: PageTranslationUsage[]): void {
+function processRouteFile(
+	routeFile: RouteFile,
+	pages: PageTranslationUsage[],
+	verbose: boolean
+): void {
 	const { filePath, serverFile, routePath } = routeFile;
-	const usedKeys = scanComponentTree(filePath);
+	const usedKeys = scanComponentTree(filePath, new Set(), verbose);
 
 	if (usedKeys.size > 0) {
 		pages.push({
@@ -353,7 +375,8 @@ function processRouteFile(routeFile: RouteFile, pages: PageTranslationUsage[]): 
 function scanDirectoryForRoutes(
 	dir: string,
 	pages: PageTranslationUsage[],
-	routesDir: string
+	routesDir: string,
+	verbose: boolean
 ): void {
 	try {
 		const entries = readdirSync(dir);
@@ -364,12 +387,12 @@ function scanDirectoryForRoutes(
 
 			if (stat.isDirectory()) {
 				// Recursively scan subdirectories
-				scanDirectoryForRoutes(fullPath, pages, routesDir);
+				scanDirectoryForRoutes(fullPath, pages, routesDir, verbose);
 			} else if (isRouteFile(entry)) {
 				// Found a route file, process it
 				const routeFile = createRouteFile(fullPath, routesDir);
 				if (routeFile) {
-					processRouteFile(routeFile, pages);
+					processRouteFile(routeFile, pages, verbose);
 				}
 			}
 		}
@@ -381,11 +404,14 @@ function scanDirectoryForRoutes(
 /**
  * Find all .svelte pages and their corresponding server files with route hierarchy
  */
-export function findPageTranslationUsage(routesDir: string): PageTranslationUsage[] {
+export function findPageTranslationUsage(
+	routesDir: string,
+	verbose = false
+): PageTranslationUsage[] {
 	const pages: PageTranslationUsage[] = [];
 
 	if (existsSync(routesDir)) {
-		scanDirectoryForRoutes(routesDir, pages, routesDir);
+		scanDirectoryForRoutes(routesDir, pages, routesDir, verbose);
 	}
 
 	return pages;

@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'fs';
-import { basename, resolve } from 'path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { basename, join, resolve } from 'path';
 import type { Plugin } from 'vite';
 
 // Import from separated modules
@@ -22,7 +22,7 @@ const ROUTES_DIR = 'src/routes';
 const HELPERS_UTILS_PATH = 'src/lib/helpers/utils.ts';
 
 // Debouncing constants
-const DEBOUNCE_DELAY = 1000; // 1000ms debounce delay to reduce frequent reprocessing
+const DEBOUNCE_DELAY = 300; // 300ms debounce delay to reduce frequent reprocessing
 
 // Types
 export interface PluginConfig {
@@ -215,7 +215,7 @@ async function processTranslations(
 	// Always scan for translation usage and auto-inject into load functions
 	// This is needed when .svelte files change to use new keys
 	const routesDir = resolve(ROUTES_DIR);
-	const pageUsages = findPageTranslationUsage(routesDir);
+	const pageUsages = findPageTranslationUsage(routesDir, verbose);
 
 	if (verbose) {
 		console.log(`🔍 Found ${pageUsages.length} pages with translation usage`);
@@ -276,7 +276,27 @@ function setupFileWatcher(
 	// Watch the routes directory for .svelte file changes
 	const routesDir = resolve(ROUTES_DIR);
 	if (existsSync(routesDir)) {
+		// Add the routes directory and all its subdirectories recursively
 		server.watcher.add(routesDir);
+
+		// Recursively add all subdirectories
+		function addSubdirectories(dir: string) {
+			try {
+				const entries = readdirSync(dir);
+				for (const entry of entries) {
+					const fullPath = join(dir, entry);
+					const stat = statSync(fullPath);
+					if (stat.isDirectory()) {
+						server.watcher.add(fullPath);
+						addSubdirectories(fullPath);
+					}
+				}
+			} catch {
+				// Ignore errors for directories we can't read
+			}
+		}
+
+		addSubdirectories(routesDir);
 	}
 
 	// Create debounced processor
