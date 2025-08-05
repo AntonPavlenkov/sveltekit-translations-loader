@@ -79,13 +79,13 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [
-		sveltekit(),
 		sveltekitTranslationsImporterPlugin({
 			defaultPath: 'src/types/default-translations.ts',
 			runtimePath: 'src/types/translations/messages/index.ts',
 			verbose: false, // Set to true for detailed logging
 			removeFunctionsOnBuild: true // Enable production optimization
-		})
+		}), //---------------> IMPORTANT to be before sveltekit()
+		sveltekit()
 	]
 });
 ```
