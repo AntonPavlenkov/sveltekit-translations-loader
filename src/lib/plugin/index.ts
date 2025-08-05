@@ -184,7 +184,7 @@ async function processTranslations(
 	const translationsChanged = state.translationsHash !== newTranslationsHash;
 
 	// Skip if no translation changes and no forced usage rescan
-	if (!translationsChanged && !forceUsageRescan && state.translationsHash) {
+	if (!translationsChanged && !forceUsageRescan) {
 		if (verbose) {
 			console.log('⏭️  Skipping reprocessing - no translation changes detected');
 		}

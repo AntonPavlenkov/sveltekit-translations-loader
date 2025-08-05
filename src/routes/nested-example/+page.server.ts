@@ -10,7 +10,6 @@ const _translationKeys: string[] = [
 	'pageContent',
 	'nested-params',
 	'goodbye',
-	'zap',
 	'welcome',
 	'user-count'
 ];

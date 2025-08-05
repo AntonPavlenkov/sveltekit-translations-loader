@@ -9,6 +9,5 @@
 		<li>{t.hello()}</li>
 		<li>{t.welcome('John')}</li>
 		<li>{t.goodbye()}</li>
-		<li>{t.zap()}</li>
 	</ul>
 </div>
