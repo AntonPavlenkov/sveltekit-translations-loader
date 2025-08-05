@@ -1,6 +1,6 @@
 import { readdir, readFile, stat, writeFile } from 'fs/promises';
 import { join, resolve } from 'path';
-import { sanitizeFunctionName } from './helpers.js';
+import { requiresSafeAccess, sanitizeFunctionName } from './helpers.js';
 
 // Constants
 const PARAMETER_REGEX = /{{([^}]+)}}/g;
@@ -138,33 +138,57 @@ function findTranslationCalls(
 	for (const [key, value] of Object.entries(defaultTranslations)) {
 		const functionName = sanitizeFunctionName(key);
 		const hasPlaceholders = value.includes('{{');
+		const isReserved = requiresSafeAccess(key);
 
-		if (hasPlaceholders) {
-			// Look for calls with parameters: t.functionName(params)
-			const paramRegex = new RegExp(`t\\.${functionName}\\s*\\(([^)]+)\\)`, 'g');
-			let match;
-			while ((match = paramRegex.exec(content)) !== null) {
-				calls.push({
-					fullMatch: match[0],
-					functionName,
-					key,
-					params: match[1].trim(),
-					hasParams: true
-				});
-			}
+		// Create regex patterns for both dot notation and bracket notation
+		const patterns = [];
+
+		if (isReserved) {
+			// For reserved words, prefer bracket notation
+			patterns.push({
+				dotNotation: `t\\.${functionName}`,
+				bracketNotation: `t\\[['"]${key}['"]\\]`
+			});
 		} else {
-			// Look for calls without parameters: t.functionName()
-			const noParamRegex = new RegExp(`t\\.${functionName}\\s*\\(\\s*\\)`, 'g');
-			let match;
-			while ((match = noParamRegex.exec(content)) !== null) {
-				calls.push({
-					fullMatch: match[0],
-					functionName,
-					key,
-					hasParams: false
+			// For safe words, use dot notation
+			patterns.push({
+				dotNotation: `t\\.${functionName}`,
+				bracketNotation: `t\\[['"]${key}['"]\\]`
+			});
+		}
+
+		patterns.forEach(({ dotNotation, bracketNotation }) => {
+			if (hasPlaceholders) {
+				// Look for calls with parameters
+				[dotNotation, bracketNotation].forEach((pattern) => {
+					const paramRegex = new RegExp(`${pattern}\\s*\\(([^)]+)\\)`, 'g');
+					let match;
+					while ((match = paramRegex.exec(content)) !== null) {
+						calls.push({
+							fullMatch: match[0],
+							functionName,
+							key,
+							params: match[1].trim(),
+							hasParams: true
+						});
+					}
+				});
+			} else {
+				// Look for calls without parameters
+				[dotNotation, bracketNotation].forEach((pattern) => {
+					const noParamRegex = new RegExp(`${pattern}\\s*\\(\\s*\\)`, 'g');
+					let match;
+					while ((match = noParamRegex.exec(content)) !== null) {
+						calls.push({
+							fullMatch: match[0],
+							functionName,
+							key,
+							hasParams: false
+						});
+					}
 				});
 			}
-		}
+		});
 	}
 
 	return calls;

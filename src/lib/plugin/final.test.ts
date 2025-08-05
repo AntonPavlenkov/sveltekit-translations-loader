@@ -37,6 +37,34 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 			it('should handle empty strings', () => {
 				expect(sanitizeFunctionName('')).toBe('');
 			});
+
+			it('should handle JavaScript reserved words', () => {
+				// JavaScript keywords
+				expect(sanitizeFunctionName('continue')).toBe('continueFn');
+				expect(sanitizeFunctionName('function')).toBe('functionFn');
+				expect(sanitizeFunctionName('class')).toBe('classFn');
+				expect(sanitizeFunctionName('return')).toBe('returnFn');
+				expect(sanitizeFunctionName('break')).toBe('breakFn');
+
+				// Future reserved words
+				expect(sanitizeFunctionName('enum')).toBe('enumFn');
+				expect(sanitizeFunctionName('interface')).toBe('interfaceFn');
+
+				// Global objects
+				expect(sanitizeFunctionName('Array')).toBe('ArrayFn');
+				expect(sanitizeFunctionName('console')).toBe('consoleFn');
+				expect(sanitizeFunctionName('window')).toBe('windowFn');
+
+				// Common method names
+				expect(sanitizeFunctionName('toString')).toBe('toStringFn');
+				expect(sanitizeFunctionName('constructor')).toBe('constructorFn');
+			});
+
+			it('should handle kebab-case reserved words', () => {
+				expect(sanitizeFunctionName('user-function')).toBe('userFunction');
+				expect(sanitizeFunctionName('is-array')).toBe('isArray');
+				expect(sanitizeFunctionName('get-console')).toBe('getConsole');
+			});
 		});
 	});
 

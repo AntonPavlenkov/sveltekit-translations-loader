@@ -22,11 +22,135 @@ interface TypeScriptDeclaration {
 	description: string;
 }
 
+// JavaScript reserved words and built-in identifiers that cannot be used as function names
+const JAVASCRIPT_RESERVED_WORDS = new Set([
+	// JavaScript keywords
+	'break',
+	'case',
+	'catch',
+	'class',
+	'const',
+	'continue',
+	'debugger',
+	'default',
+	'delete',
+	'do',
+	'else',
+	'export',
+	'extends',
+	'finally',
+	'for',
+	'function',
+	'if',
+	'import',
+	'in',
+	'instanceof',
+	'let',
+	'new',
+	'return',
+	'super',
+	'switch',
+	'this',
+	'throw',
+	'try',
+	'typeof',
+	'var',
+	'void',
+	'while',
+	'with',
+	'yield',
+
+	// Future reserved words
+	'enum',
+	'implements',
+	'interface',
+	'package',
+	'private',
+	'protected',
+	'public',
+	'static',
+
+	// Global objects and functions
+	'Array',
+	'Boolean',
+	'Date',
+	'Error',
+	'Function',
+	'JSON',
+	'Math',
+	'Number',
+	'Object',
+	'RegExp',
+	'String',
+	'Symbol',
+	'console',
+	'window',
+	'document',
+	'global',
+	'process',
+
+	// Common browser globals that might cause conflicts
+	'alert',
+	'confirm',
+	'prompt',
+	'setTimeout',
+	'setInterval',
+	'clearTimeout',
+	'clearInterval',
+	'localStorage',
+	'sessionStorage',
+	'fetch',
+	'XMLHttpRequest',
+
+	// Node.js globals
+	'require',
+	'module',
+	'exports',
+	'__dirname',
+	'__filename',
+	'Buffer',
+
+	// Common method names that might cause conflicts
+	'toString',
+	'valueOf',
+	'hasOwnProperty',
+	'isPrototypeOf',
+	'propertyIsEnumerable',
+	'constructor',
+	'prototype',
+	'length',
+	'name'
+]);
+
+/**
+ * Check if a name is a JavaScript reserved word or conflicts with built-in identifiers
+ */
+function isReservedWord(name: string): boolean {
+	return JAVASCRIPT_RESERVED_WORDS.has(name);
+}
+
 /**
  * Convert kebab-case or other formats to camelCase for function names
+ * Handles JavaScript reserved words by appending 'Fn' suffix
  */
 export function sanitizeFunctionName(key: string): string {
-	return key.replace(/[-_\s]+(.)?/g, (_, char) => (char ? char.toUpperCase() : ''));
+	// First convert to camelCase
+	let camelCase = key.replace(/[-_\s]+(.)?/g, (_, char) => (char ? char.toUpperCase() : ''));
+
+	// Handle reserved words by appending 'Fn' suffix
+	if (isReservedWord(camelCase)) {
+		camelCase = camelCase + 'Fn';
+	}
+
+	return camelCase;
+}
+
+/**
+ * Check if a translation key requires safe access (reserved word)
+ */
+export function requiresSafeAccess(key: string): boolean {
+	const functionName = key.replace(/[-_\s]+(.)?/g, (_, char) => (char ? char.toUpperCase() : ''));
+	return isReservedWord(functionName);
 }
 
 /**

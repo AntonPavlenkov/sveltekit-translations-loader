@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { dirname, join, resolve } from 'path';
-import { getRoutePath } from './helpers.js';
+import { getRoutePath, requiresSafeAccess } from './helpers.js';
 
 // Constants
 const TRANSLATION_IMPORT_PATTERN =
@@ -8,9 +8,11 @@ const TRANSLATION_IMPORT_PATTERN =
 
 const TRANSLATION_USAGE_PATTERNS = [
 	/\bt\.([a-zA-Z][a-zA-Z0-9]*)\s*\(/g, // t.hello()
-	/\bt\[['"]([^'"]+)['"]\]\s*\(/g, // t['user-count']()
+	/\bt\[['"]([^'"]+)['"]\]\s*\(/g, // t['user-count']() or t['continue']()
 	/\bdata\._loadedTranslations\.([a-zA-Z][a-zA-Z0-9]*)\b/g, // data._loadedTranslations.hello
-	/\bdata\._loadedTranslations\[['"]([^'"]+)['"]\]/g // data._loadedTranslations['user-count']
+	/\bdata\._loadedTranslations\[['"]([^'"]+)['"]\]/g, // data._loadedTranslations['user-count'] or data._loadedTranslations['continue']
+	/\bt\.([a-zA-Z][a-zA-Z0-9]*Fn)\s*\(/g, // t.continueFn() - reserved words with Fn suffix
+	/\bdata\._loadedTranslations\.([a-zA-Z][a-zA-Z0-9]*Fn)\b/g // data._loadedTranslations.continueFn
 ] as const;
 
 const DIRECT_FUNCTION_PATTERN = /\b([a-zA-Z][a-zA-Z0-9]*)\s*\(/g; // hello(), welcome(), etc.
@@ -19,6 +21,15 @@ const IMPORT_PATTERNS = [
 	/import\s+(\w+)\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import Component from './Component.svelte'
 	/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import { Component } from './Component.svelte'
 	/import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+\.svelte)['"]/g // import * as Components from './Component.svelte'
+] as const;
+
+const DYNAMIC_IMPORT_PATTERNS = [
+	/import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // import('Component.svelte')
+	/await\s+import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // await import('Component.svelte')
+	/const\s+\w+\s*=\s*await\s+import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // const c = await import('Component.svelte')
+	/let\s+\w+\s*=\s*await\s+import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // let c = await import('Component.svelte')
+	/var\s+\w+\s*=\s*await\s+import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // var c = await import('Component.svelte')
+	/=\s*import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g // = import('Component.svelte')
 ] as const;
 
 const ROUTE_FILES = {
@@ -55,6 +66,20 @@ function camelToKebab(str: string): string {
  */
 function addKeyVariants(usedKeys: Set<string>, key: string): void {
 	usedKeys.add(key);
+
+	// Handle reserved words with Fn suffix - extract original key
+	if (key.endsWith('Fn')) {
+		const originalKey = key.slice(0, -2); // Remove 'Fn' suffix
+		if (requiresSafeAccess(originalKey)) {
+			usedKeys.add(originalKey);
+
+			// Also add kebab-case variant of original key
+			const kebabOriginal = camelToKebab(originalKey);
+			if (kebabOriginal !== originalKey) {
+				usedKeys.add(kebabOriginal);
+			}
+		}
+	}
 
 	// Convert camelCase back to kebab-case to find original key
 	const kebabKey = camelToKebab(key);
@@ -141,10 +166,25 @@ function resolveImportPath(importPath: string, basePath: string): string {
 function extractImportPaths(content: string, basePath: string): string[] {
 	const imports: string[] = [];
 
+	// Process static imports
 	IMPORT_PATTERNS.forEach((pattern) => {
 		let match;
 		while ((match = pattern.exec(content)) !== null) {
 			const importPath = match[match.length - 1]; // Last capture group is always the path
+			const resolvedPath = resolveImportPath(importPath, basePath);
+
+			// Only include if file exists
+			if (existsSync(resolvedPath)) {
+				imports.push(resolvedPath);
+			}
+		}
+	});
+
+	// Process dynamic imports
+	DYNAMIC_IMPORT_PATTERNS.forEach((pattern) => {
+		let match;
+		while ((match = pattern.exec(content)) !== null) {
+			const importPath = match[1]; // First capture group is the path for dynamic imports
 			const resolvedPath = resolveImportPath(importPath, basePath);
 
 			// Only include if file exists

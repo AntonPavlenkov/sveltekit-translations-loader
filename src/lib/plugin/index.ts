@@ -1,4 +1,4 @@
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { basename, resolve } from 'path';
 import type { Plugin } from 'vite';
 
@@ -21,6 +21,9 @@ const SSR_INDICATORS = ['.svelte-kit/generated/server/', '?ssr'] as const;
 const ROUTES_DIR = 'src/routes';
 const HELPERS_UTILS_PATH = 'src/lib/helpers/utils.ts';
 
+// Debouncing constants
+const DEBOUNCE_DELAY = 1000; // 1000ms debounce delay to reduce frequent reprocessing
+
 // Types
 export interface PluginConfig {
 	defaultPath: string;
@@ -38,6 +41,9 @@ interface PluginState {
 	isBuildMode: boolean;
 	isDevelopment: boolean;
 	defaultTranslations: Record<string, string>;
+	processingTimeout: NodeJS.Timeout | null;
+	lastProcessedFiles: Set<string>;
+	translationsHash: string;
 }
 
 interface BuildConfig {
@@ -60,6 +66,19 @@ function detectDevelopmentMode(): boolean {
 }
 
 /**
+ * Create a simple hash from a string
+ */
+function createHash(content: string): string {
+	let hash = 0;
+	for (let i = 0; i < content.length; i++) {
+		const char = content.charCodeAt(i);
+		hash = (hash << 5) - hash + char;
+		hash = hash & hash; // Convert to 32-bit integer
+	}
+	return hash.toString();
+}
+
+/**
  * Load default translations from the specified path
  */
 async function loadDefaultTranslations(defaultPath: string): Promise<Record<string, string>> {
@@ -72,6 +91,22 @@ async function loadDefaultTranslations(defaultPath: string): Promise<Record<stri
  * Check if file should trigger reprocessing
  */
 function shouldReprocessFile(file: string, defaultPath: string): boolean {
+	// Skip generated, temporary, or server files to prevent loops
+	if (
+		file.includes('.svelte-kit/') ||
+		file.includes('node_modules/') ||
+		file.includes('+page.server.ts') ||
+		file.includes('+layout.server.ts') ||
+		file.includes('.tmp') ||
+		file.includes('.bak') ||
+		file.includes('~') ||
+		file.includes('$types.ts') ||
+		file.includes('.d.ts')
+	) {
+		return false;
+	}
+
+	// Only reprocess on changes to translation files or specific .svelte files that use i18n
 	return file.includes(defaultPath) || (file.includes(ROUTES_DIR) && file.endsWith('.svelte'));
 }
 
@@ -133,18 +168,47 @@ async function processTranslations(
 	state: PluginState,
 	defaultPath: string,
 	runtimePath: string,
-	verbose: boolean
+	verbose: boolean,
+	forceUsageRescan = false
 ): Promise<void> {
-	// Generate base translation functions
-	await generateTranslations(defaultPath, runtimePath, verbose, state.isDevelopment);
+	// Load default translations first to check if they changed
+	const newDefaultTranslations = await loadDefaultTranslations(defaultPath);
+	const newTranslationsHash = createHash(JSON.stringify(newDefaultTranslations));
 
-	// Generate TypeScript declarations for the virtual module
-	await generateTypeDeclarations(defaultPath, verbose, runtimePath);
+	// Check if translations actually changed
+	const translationsChanged = state.translationsHash !== newTranslationsHash;
 
-	// Load default translations to resolve keys properly
-	state.defaultTranslations = await loadDefaultTranslations(defaultPath);
+	// Skip if no translation changes and no forced usage rescan
+	if (!translationsChanged && !forceUsageRescan && state.translationsHash) {
+		if (verbose) {
+			console.log('⏭️  Skipping reprocessing - no translation changes detected');
+		}
+		return;
+	}
 
-	// Scan for translation usage and auto-inject into load functions
+	if (verbose) {
+		if (translationsChanged) {
+			console.log('🔄 Translation changes detected, reprocessing...');
+		} else if (forceUsageRescan) {
+			console.log('🔄 Svelte file changes detected, rescanning usage...');
+		}
+	}
+
+	// Update state
+	state.defaultTranslations = newDefaultTranslations;
+	state.translationsHash = newTranslationsHash;
+
+	// Only regenerate translation functions and types if translations changed
+	if (translationsChanged) {
+		// Generate base translation functions
+		await generateTranslations(defaultPath, runtimePath, verbose, state.isDevelopment);
+
+		// Generate TypeScript declarations for the virtual module
+		await generateTypeDeclarations(defaultPath, verbose, runtimePath);
+	}
+
+	// Always scan for translation usage and auto-inject into load functions
+	// This is needed when .svelte files change to use new keys
 	const routesDir = resolve(ROUTES_DIR);
 	const pageUsages = findPageTranslationUsage(routesDir);
 
@@ -154,6 +218,30 @@ async function processTranslations(
 
 	// Process route hierarchy and inject translation keys
 	await processRouteHierarchy(pageUsages, state.defaultTranslations, defaultPath, verbose);
+}
+
+/**
+ * Debounced processing function
+ */
+function createDebouncedProcessor(
+	state: PluginState,
+	processTranslationsFn: (forceUsageRescan?: boolean) => Promise<void>,
+	verbose: boolean
+): (forceUsageRescan?: boolean) => void {
+	return (forceUsageRescan = false) => {
+		// Clear existing timeout
+		if (state.processingTimeout) {
+			clearTimeout(state.processingTimeout);
+		}
+
+		// Set new timeout
+		state.processingTimeout = setTimeout(async () => {
+			if (verbose) {
+				console.log('🔄 Debounced processing triggered');
+			}
+			await processTranslationsFn(forceUsageRescan);
+		}, DEBOUNCE_DELAY);
+	};
 }
 
 /**
@@ -171,16 +259,81 @@ function setupFileWatcher(
 	processTranslationsFn: () => Promise<void>,
 	verbose: boolean
 ): void {
-	// Watch for changes in development
+	// Watch only the default translations file, not entire directories
 	server.watcher.add(resolve(defaultPath));
-	server.watcher.add(resolve(ROUTES_DIR));
+
+	// Don't watch the entire routes directory - let Vite handle .svelte file changes
+	// This prevents watching generated files and reduces unnecessary triggers
+
+	// Create debounced processor
+	const debouncedProcessor = createDebouncedProcessor(state, processTranslationsFn, verbose);
 
 	server.watcher.on('change', async (file: string) => {
+		// Apply strict filtering to prevent unnecessary reprocessing
 		if (shouldReprocessFile(file, defaultPath)) {
-			if (verbose) {
-				console.log(`🔄 Detected change in ${basename(file)}, reprocessing translations...`);
+			// Check if this is a translation file change or svelte file change
+			const isTranslationFile = file.includes(defaultPath);
+			const isSvelteFile = file.endsWith('.svelte');
+
+			// For .svelte files, check if they actually use i18n before reprocessing
+			if (isSvelteFile) {
+				try {
+					const content = readFileSync(file, 'utf8');
+					if (!hasI18nImports(content)) {
+						if (verbose) {
+							console.log(`⏭️  Skipping ${basename(file)} - no i18n imports found`);
+						}
+						return;
+					}
+				} catch {
+					// If we can't read the file, proceed with reprocessing to be safe
+					if (verbose) {
+						console.log(`⚠️  Could not read ${basename(file)}, proceeding with reprocessing`);
+					}
+				}
 			}
-			await processTranslationsFn();
+
+			if (verbose) {
+				const changeType = isTranslationFile ? 'translation' : 'usage';
+				console.log(
+					`🔄 Detected ${changeType} change in ${basename(file)}, scheduling reprocessing...`
+				);
+			}
+
+			// Force usage rescan for .svelte file changes, normal processing for translation changes
+			debouncedProcessor(isSvelteFile);
+		}
+	});
+
+	// Also listen to Vite's file changes for .svelte files specifically
+	server.watcher.on('add', async (file: string) => {
+		if (
+			file.endsWith('.svelte') &&
+			file.includes(ROUTES_DIR) &&
+			shouldReprocessFile(file, defaultPath)
+		) {
+			try {
+				const content = readFileSync(file, 'utf8');
+				if (!hasI18nImports(content)) {
+					if (verbose) {
+						console.log(`⏭️  Skipping new file ${basename(file)} - no i18n imports found`);
+					}
+					return;
+				}
+			} catch {
+				// If we can't read the file, proceed with reprocessing to be safe
+				if (verbose) {
+					console.log(
+						`⚠️  Could not read new file ${basename(file)}, proceeding with reprocessing`
+					);
+				}
+			}
+
+			if (verbose) {
+				console.log(`➕ New .svelte file detected: ${basename(file)}, scheduling usage rescan...`);
+			}
+			// Force usage rescan for new .svelte files
+			debouncedProcessor(true);
 		}
 	});
 }
@@ -263,11 +416,15 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 	const state: PluginState = {
 		isBuildMode: false,
 		isDevelopment: detectDevelopmentMode(),
-		defaultTranslations: {}
+		defaultTranslations: {},
+		processingTimeout: null,
+		lastProcessedFiles: new Set(),
+		translationsHash: ''
 	};
 
 	// Create processTranslations function with current state
-	const processTranslationsFn = () => processTranslations(state, defaultPath, runtimePath, verbose);
+	const processTranslationsFn = (forceUsageRescan = false) =>
+		processTranslations(state, defaultPath, runtimePath, verbose, forceUsageRescan);
 
 	return {
 		name: 'sveltekit-translations-loader',
@@ -311,6 +468,14 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 		transform(code: string, id: string, options?: TransformOptions) {
 			return handleTransform(code, id, options, state, removeFunctionsOnBuild, verbose);
+		},
+
+		closeBundle() {
+			// Clean up timeout when plugin is destroyed
+			if (state.processingTimeout) {
+				clearTimeout(state.processingTimeout);
+				state.processingTimeout = null;
+			}
 		}
 	};
 }

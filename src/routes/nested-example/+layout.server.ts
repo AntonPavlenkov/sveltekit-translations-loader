@@ -17,8 +17,6 @@ const _translationKeys: string[] = [
 
 export const load: LayoutServerLoad = async () => {
 	return {
-		zoom: 'zoom',
-		bro: 'bro',
 		_loadedTranslations: _getTranslations(_translationKeys)
 	};
 };
