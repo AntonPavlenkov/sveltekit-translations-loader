@@ -1,5 +1,6 @@
-import { mkdir, writeFile } from 'fs/promises';
+import { mkdir } from 'fs/promises';
 import { dirname, join, resolve } from 'path';
+import { forceFlushFileWrites, queueFileWrite, queueFileWrites } from './batch-file-writer.js';
 import { generateTypeScriptDeclarations, sanitizeFunctionName } from './helpers.js';
 
 // Constants
@@ -166,8 +167,11 @@ async function generateIndividualFiles(
 		const path = join(config.runtimeDir, `${entry.safeFunctionName}.ts`);
 
 		files.push({ path, content });
-		await writeFile(path, content);
 	}
+
+	// Queue all file writes for batch processing
+	const writes = files.map((file) => ({ path: file.path, content: file.content }));
+	queueFileWrites(writes);
 
 	return files;
 }
@@ -200,12 +204,15 @@ async function generateOutputFiles(
 	// Generate index file
 	const indexContent = generateIndexFileContent(entries);
 	const indexPath = join(config.runtimeDir, 'index.ts');
-	await writeFile(indexPath, indexContent);
+	queueFileWrite(indexPath, indexContent);
 
 	// Generate TypeScript declarations
 	const dtsContent = generateTypeScriptDeclarations(defaultTranslations);
 	const dtsPath = join(config.runtimeDir, 'index.d.ts');
-	await writeFile(dtsPath, dtsContent);
+	queueFileWrite(dtsPath, dtsContent);
+
+	// Force flush to ensure all files are written
+	await forceFlushFileWrites();
 }
 
 /**

@@ -4,7 +4,6 @@
 	// Static imports - traditional approach
 	import AdvancedDynamicShowcase from './advanced-dynamic-showcase.svelte';
 	import DynamicShowcase from './dynamic-showcase-component.svelte';
-	import ReservedWordsTest from './reserved-words-test.svelte';
 	import StaticShowcase from './static-showcase-component.svelte';
 
 	let { data }: { data: PageData } = $props();
@@ -97,9 +96,6 @@
 
 		<!-- Advanced Dynamic Import Patterns -->
 		<AdvancedDynamicShowcase />
-
-		<!-- Reserved Words Handling Test -->
-		<ReservedWordsTest />
 	</div>
 
 	<!-- Technical Details -->

@@ -1,0 +1,12 @@
+<script lang="ts">
+	import * as t from '@i18n';
+	import AliestTester from '@variants/AliestTester.svelte';
+
+	let isLoaded = $state(false);
+</script>
+
+{#if isLoaded}
+	<AliestTester />
+
+	<p>Alias tester: {t.hey('df')}</p>
+{/if}

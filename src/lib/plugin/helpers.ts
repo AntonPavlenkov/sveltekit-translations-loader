@@ -170,8 +170,23 @@ function kebabToCamel(str: string): string {
 /**
  * Check if a string has placeholder patterns
  */
-function hasPlaceholders(value: string): boolean {
+export function hasPlaceholders(value: string): boolean {
 	return value.includes('{{');
+}
+
+/**
+ * Extract parameter names from translation string
+ */
+export function extractParamsFromTranslation(translation: string): string[] {
+	const PARAMETER_REGEX = /{{([^}]+)}}/g;
+	const params = new Set<string>();
+	let match;
+
+	while ((match = PARAMETER_REGEX.exec(translation)) !== null) {
+		params.add(match[1].trim());
+	}
+
+	return Array.from(params);
 }
 
 /**

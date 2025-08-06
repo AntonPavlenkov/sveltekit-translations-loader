@@ -1,5 +1,6 @@
-import { readdir, readFile, stat, writeFile } from 'fs/promises';
+import { readdir, readFile, stat } from 'fs/promises';
 import { join, resolve } from 'path';
+import { queueFileWrite } from './batch-file-writer.js';
 import { requiresSafeAccess, sanitizeFunctionName } from './helpers.js';
 
 // Constants
@@ -389,7 +390,7 @@ async function transformSvelteFile(
 
 	// Only write if content changed
 	if (transformedContent !== content) {
-		await writeFile(filePath, transformedContent);
+		queueFileWrite(filePath, transformedContent);
 
 		if (verbose) {
 			const translationCalls = findTranslationCalls(content, defaultTranslations);

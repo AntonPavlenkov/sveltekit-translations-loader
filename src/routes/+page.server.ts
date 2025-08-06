@@ -1,4 +1,10 @@
 import type { PageServerLoad } from './$types.js';
+
+const customFunction = () => {
+	return 'This is custom code that should be preserved';
+};
+const customVariable = 'custom value';
+
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/server';
@@ -12,11 +18,6 @@ const _translationKeys: string[] = [
 	'layoutDescription'
 ];
 // END AUTO-GENERATED CODE
-
-const customFunction = () => {
-	return 'This is custom code that should be preserved';
-};
-const customVariable = 'custom value';
 
 export const load: PageServerLoad = async () => {
 	return {

@@ -3,6 +3,8 @@ import { basename, join, resolve } from 'path';
 import type { Plugin } from 'vite';
 
 // Import from separated modules
+import { forceFlushFileWrites, getGlobalBatchWriter } from './batch-file-writer.js';
+import { handleComponentChange } from './dependency-tracker.js';
 import { generateTranslations } from './function-generator.js';
 import { resolveTranslationKeys, transformTranslationCode } from './helpers.js';
 import { injectTranslationKeys } from './load-function-updater.js';
@@ -109,16 +111,31 @@ function shouldReprocessFile(file: string, defaultPath: string): boolean {
 		return false;
 	}
 
-	// Process translation files and .svelte files in routes directory
-	// Note: We don't exclude server files anymore as they need to be updated when components change
-	return file.includes(defaultPath) || (file.includes(ROUTES_DIR) && file.endsWith('.svelte'));
+	// Process translation files
+	if (file.includes(defaultPath)) {
+		return true;
+	}
+
+	// For .svelte files in routes directory or any .svelte files that might be used by pages
+	// This will be done in the file watcher callback for better performance
+	if (file.endsWith('.svelte')) {
+		return true; // We'll filter this further in the watcher
+	}
+
+	return false;
 }
 
 /**
- * Check if file has i18n imports
+ * Check if file has i18n imports or uses _loadedTranslations
  */
-function hasI18nImports(code: string): boolean {
-	return I18N_IMPORT_PATTERNS.some((pattern) => code.includes(pattern));
+function hasI18nUsage(code: string): boolean {
+	// Check for @i18n imports
+	const hasImports = I18N_IMPORT_PATTERNS.some((pattern) => code.includes(pattern));
+
+	// Check for _loadedTranslations usage
+	const hasLoadedTranslations = code.includes('_loadedTranslations');
+
+	return hasImports || hasLoadedTranslations;
 }
 
 /**
@@ -176,6 +193,9 @@ async function processTranslations(
 	verbose: boolean,
 	forceUsageRescan = false
 ): Promise<void> {
+	// Initialize batch file writer with verbose setting
+	getGlobalBatchWriter({ verbose });
+
 	// Load default translations first to check if they changed
 	const newDefaultTranslations = await loadDefaultTranslations(defaultPath);
 	const newTranslationsHash = createHash(JSON.stringify(newDefaultTranslations));
@@ -233,6 +253,9 @@ async function processTranslations(
 		verbose,
 		state.isDevelopment
 	);
+
+	// Force flush all pending file writes
+	await forceFlushFileWrites();
 }
 
 /**
@@ -313,20 +336,22 @@ function setupFileWatcher(
 			const isTranslationFile = file.includes(defaultPath);
 			const isSvelteFile = file.endsWith('.svelte');
 
-			// For .svelte files, always trigger reprocessing regardless of i18n imports
-			// This ensures we catch all changes and update server files properly
+			// For .svelte files, process them and let the dependency tracker handle filtering
 			if (isSvelteFile) {
 				try {
 					const content = readFileSync(file, 'utf8');
-					const hasImports = hasI18nImports(content);
+					const hasUsage = hasI18nUsage(content);
 
 					if (verbose) {
 						console.log(`📝 .svelte file changed: ${basename(file)}`);
-						console.log(`🔍 Has i18n imports: ${hasImports}`);
+						console.log(`🔍 Has i18n usage: ${hasUsage}`);
 					}
 
-					// Always trigger reprocessing for .svelte files to ensure server files are updated
-					// Even if no i18n imports are found, we need to rescan in case imports were removed
+					// Handle component change with dependency tracking
+					// The dependency tracker will check if this component or its users have translation usage
+					await handleComponentChange(file, ROUTES_DIR, defaultPath, verbose, state.isDevelopment);
+
+					// Also trigger normal reprocessing to ensure everything is up to date
 					if (verbose) {
 						console.log(`🔄 Triggering usage rescan for ${basename(file)}`);
 					}
@@ -366,12 +391,16 @@ function setupFileWatcher(
 		) {
 			try {
 				const content = readFileSync(file, 'utf8');
-				const hasImports = hasI18nImports(content);
+				const hasUsage = hasI18nUsage(content);
 
 				if (verbose) {
 					console.log(`➕ New .svelte file detected: ${basename(file)}`);
-					console.log(`🔍 Has i18n imports: ${hasImports}`);
+					console.log(`🔍 Has i18n usage: ${hasUsage}`);
 				}
+
+				// Handle component change with dependency tracking for new files
+				// The dependency tracker will check if this component or its users have translation usage
+				await handleComponentChange(file, ROUTES_DIR, defaultPath, verbose, state.isDevelopment);
 
 				// Always trigger reprocessing for new .svelte files
 				if (verbose) {
@@ -401,6 +430,11 @@ function setupFileWatcher(
 			if (verbose) {
 				console.log(`🗑️  .svelte file removed: ${basename(file)}, scheduling usage rescan...`);
 			}
+
+			// Handle component change with dependency tracking for deleted files
+			// This will update server files that were using the deleted component
+			await handleComponentChange(file, ROUTES_DIR, defaultPath, verbose, state.isDevelopment);
+
 			// Force usage rescan when .svelte files are removed
 			debouncedProcessor(true);
 		}
@@ -417,7 +451,7 @@ function transformSvelteFile(
 	verbose: boolean
 ): { code: string; map: null } | null {
 	// Check if the file contains @i18n imports
-	if (!hasI18nImports(code)) {
+	if (!hasI18nUsage(code)) {
 		return null;
 	}
 
@@ -544,12 +578,15 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 			return handleTransform(code, id, options, state, removeFunctionsOnBuild, verbose);
 		},
 
-		closeBundle() {
+		async closeBundle() {
 			// Clean up timeout when plugin is destroyed
 			if (state.processingTimeout) {
 				clearTimeout(state.processingTimeout);
 				state.processingTimeout = null;
 			}
+
+			// Force flush any remaining file writes
+			await forceFlushFileWrites();
 		}
 	};
 }

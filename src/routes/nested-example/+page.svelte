@@ -12,7 +12,7 @@
 		<h3>Combined Keys Demo:</h3>
 		<p>Layout title: {t.layoutTitle()}</p>
 		<p>Page title: {t.pageTitle()}</p>
-		<p>This demonstrates nested route transl ation inheritance!</p>
+		<p>This demonstrates nested route translation inheritance!</p>
 		<p>
 			Dynamic keys are available: {t.nestedParams({ name: 'John', count: 42 }) || 'Not available'}
 		</p>

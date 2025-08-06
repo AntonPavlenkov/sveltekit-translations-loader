@@ -155,6 +155,46 @@ function hasTranslationImport(content: string): boolean {
 /**
  * Extract translation keys from content using patterns
  */
+/**
+ * Check if a position in content is inside a comment
+ */
+function isInComment(content: string, position: number): boolean {
+	const beforePosition = content.substring(0, position);
+
+	// Check for HTML comments <!-- -->
+	const lastHtmlCommentStart = beforePosition.lastIndexOf('<!--');
+	const lastHtmlCommentEnd = beforePosition.lastIndexOf('-->');
+	if (
+		lastHtmlCommentStart !== -1 &&
+		(lastHtmlCommentEnd === -1 || lastHtmlCommentStart > lastHtmlCommentEnd)
+	) {
+		return true; // Inside HTML comment
+	}
+
+	// Check for JSX comments {/* */}
+	const lastJsxCommentStart = beforePosition.lastIndexOf('{/*');
+	const lastJsxCommentEnd = beforePosition.lastIndexOf('*/}');
+	if (
+		lastJsxCommentStart !== -1 &&
+		(lastJsxCommentEnd === -1 || lastJsxCommentStart > lastJsxCommentEnd)
+	) {
+		return true; // Inside JSX comment
+	}
+
+	// Check for line comments //
+	const lines = beforePosition.split('\n');
+	const currentLine = lines[lines.length - 1];
+	if (currentLine.includes('//')) {
+		const commentStart = currentLine.indexOf('//');
+		const matchStart = position - currentLine.length;
+		if (matchStart >= commentStart) {
+			return true; // Inside line comment
+		}
+	}
+
+	return false;
+}
+
 function extractTranslationKeys(content: string, hasDirectImports: boolean): Set<string> {
 	const usedKeys = new Set<string>();
 
@@ -163,14 +203,41 @@ function extractTranslationKeys(content: string, hasDirectImports: boolean): Set
 
 	// Add direct function pattern if file imports translations
 	if (hasDirectImports) {
-		patterns.push(DIRECT_FUNCTION_PATTERN);
+		// Extract keys from direct function pattern, but filter out import-related matches
+		let match;
+		while ((match = DIRECT_FUNCTION_PATTERN.exec(content)) !== null) {
+			const key = match[1];
+
+			// Skip if this looks like an import statement (t from '@i18n')
+			const beforeMatch = content.substring(0, match.index);
+			const lastImportIndex = beforeMatch.lastIndexOf('import');
+			if (lastImportIndex !== -1) {
+				const importLine = content.substring(lastImportIndex, match.index + match[0].length);
+				if (importLine.includes('from') && importLine.includes('@i18n')) {
+					continue; // Skip this match as it's from an import statement
+				}
+			}
+
+			// Skip if this is inside a comment
+			if (isInComment(content, match.index)) {
+				continue;
+			}
+
+			addKeyVariants(usedKeys, key);
+		}
 	}
 
-	// Extract keys from all patterns
+	// Extract keys from standard patterns
 	patterns.forEach((pattern) => {
 		let match;
 		while ((match = pattern.exec(content)) !== null) {
 			const key = match[1];
+
+			// Skip if this is inside a comment
+			if (isInComment(content, match.index)) {
+				continue;
+			}
+
 			addKeyVariants(usedKeys, key);
 		}
 	});
@@ -369,13 +436,24 @@ function processRouteFile(
 	const { filePath, serverFile, routePath } = routeFile;
 	const usedKeys = scanComponentTree(filePath, new Set(), verbose);
 
-	if (usedKeys.size > 0) {
-		pages.push({
-			pageFile: filePath,
-			serverFile,
-			usedKeys,
-			routePath
-		});
+	// Always add the page to ensure server files are created
+	// This allows for dynamic updates when translation keys are added later
+	pages.push({
+		pageFile: filePath,
+		serverFile,
+		usedKeys,
+		routePath
+	});
+
+	if (verbose && usedKeys.size > 0) {
+		console.log(
+			`🔍 Found ${usedKeys.size} translation keys in ${filePath.replace(process.cwd(), '.')}:`,
+			Array.from(usedKeys)
+		);
+	} else if (verbose) {
+		console.log(
+			`📄 No translation keys found in ${filePath.replace(process.cwd(), '.')} - server file will be created for future use`
+		);
 	}
 }
 
