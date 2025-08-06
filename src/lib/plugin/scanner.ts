@@ -200,7 +200,17 @@ export function scanTranslationUsage(filePath: string): Set<string> {
 	}
 
 	const hasDirectImports = hasTranslationImport(content);
-	return extractTranslationKeys(content, hasDirectImports);
+	const keys = extractTranslationKeys(content, hasDirectImports);
+
+	// Debug logging for troubleshooting
+	if (keys.size > 0) {
+		console.log(
+			`🔍 Found ${keys.size} translation keys in ${filePath.replace(process.cwd(), '.')}:`,
+			Array.from(keys)
+		);
+	}
+
+	return keys;
 }
 
 /**

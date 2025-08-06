@@ -22,7 +22,7 @@ const ROUTES_DIR = 'src/routes';
 const HELPERS_UTILS_PATH = 'src/lib/helpers/utils.ts';
 
 // Debouncing constants
-const DEBOUNCE_DELAY = 300; // 300ms debounce delay to reduce frequent reprocessing
+const DEBOUNCE_DELAY = 100; // 100ms debounce delay for better responsiveness
 
 // Types
 export interface PluginConfig {
@@ -183,8 +183,12 @@ async function processTranslations(
 	// Check if translations actually changed
 	const translationsChanged = state.translationsHash !== newTranslationsHash;
 
-	// Skip if no translation changes and no forced usage rescan
-	if (!translationsChanged && !forceUsageRescan) {
+	// Always process if forced usage rescan is requested
+	if (forceUsageRescan) {
+		if (verbose) {
+			console.log('🔄 Forced usage rescan requested - processing all routes');
+		}
+	} else if (!translationsChanged) {
 		if (verbose) {
 			console.log('⏭️  Skipping reprocessing - no translation changes detected');
 		}
@@ -299,7 +303,7 @@ function setupFileWatcher(
 		addSubdirectories(routesDir);
 	}
 
-	// Create debounced processor
+	// Create debounced processor with shorter delay for better responsiveness
 	const debouncedProcessor = createDebouncedProcessor(state, processTranslationsFn, verbose);
 
 	server.watcher.on('change', async (file: string) => {
@@ -309,21 +313,35 @@ function setupFileWatcher(
 			const isTranslationFile = file.includes(defaultPath);
 			const isSvelteFile = file.endsWith('.svelte');
 
-			// For .svelte files, check if they actually use i18n before reprocessing
+			// For .svelte files, always trigger reprocessing regardless of i18n imports
+			// This ensures we catch all changes and update server files properly
 			if (isSvelteFile) {
 				try {
 					const content = readFileSync(file, 'utf8');
-					if (!hasI18nImports(content)) {
-						if (verbose) {
-							console.log(`⏭️  Skipping ${basename(file)} - no i18n imports found`);
-						}
-						return;
-					}
-				} catch {
-					// If we can't read the file, proceed with reprocessing to be safe
+					const hasImports = hasI18nImports(content);
+
 					if (verbose) {
-						console.log(`⚠️  Could not read ${basename(file)}, proceeding with reprocessing`);
+						console.log(`📝 .svelte file changed: ${basename(file)}`);
+						console.log(`🔍 Has i18n imports: ${hasImports}`);
 					}
+
+					// Always trigger reprocessing for .svelte files to ensure server files are updated
+					// Even if no i18n imports are found, we need to rescan in case imports were removed
+					if (verbose) {
+						console.log(`🔄 Triggering usage rescan for ${basename(file)}`);
+					}
+					debouncedProcessor(true);
+					return;
+				} catch (error) {
+					if (verbose) {
+						console.log(
+							`⚠️  Could not read ${basename(file)}, proceeding with reprocessing:`,
+							error
+						);
+					}
+					// If we can't read the file, proceed with reprocessing to be safe
+					debouncedProcessor(true);
+					return;
 				}
 			}
 
@@ -348,26 +366,28 @@ function setupFileWatcher(
 		) {
 			try {
 				const content = readFileSync(file, 'utf8');
-				if (!hasI18nImports(content)) {
-					if (verbose) {
-						console.log(`⏭️  Skipping new file ${basename(file)} - no i18n imports found`);
-					}
-					return;
+				const hasImports = hasI18nImports(content);
+
+				if (verbose) {
+					console.log(`➕ New .svelte file detected: ${basename(file)}`);
+					console.log(`🔍 Has i18n imports: ${hasImports}`);
 				}
-			} catch {
-				// If we can't read the file, proceed with reprocessing to be safe
+
+				// Always trigger reprocessing for new .svelte files
+				if (verbose) {
+					console.log(`🔄 Triggering usage rescan for new file ${basename(file)}`);
+				}
+				debouncedProcessor(true);
+			} catch (error) {
 				if (verbose) {
 					console.log(
-						`⚠️  Could not read new file ${basename(file)}, proceeding with reprocessing`
+						`⚠️  Could not read new file ${basename(file)}, proceeding with reprocessing:`,
+						error
 					);
 				}
+				// If we can't read the file, proceed with reprocessing to be safe
+				debouncedProcessor(true);
 			}
-
-			if (verbose) {
-				console.log(`➕ New .svelte file detected: ${basename(file)}, scheduling usage rescan...`);
-			}
-			// Force usage rescan for new .svelte files
-			debouncedProcessor(true);
 		}
 	});
 
