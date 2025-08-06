@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
+import { hasContentChanged } from './shared-utils.js';
 
 // Constants
 const AUTO_GENERATED_MARKERS = {
@@ -12,39 +13,6 @@ const AUTO_GENERATED_MARKERS = {
 interface LoadFunctionConfig {
 	loadType: string;
 	existingReturnContent: string;
-}
-
-/**
- * Get content hash for change detection
- */
-function getContentHash(content: string): string {
-	// Simple hash function for change detection
-	let hash = 0;
-	for (let i = 0; i < content.length; i++) {
-		const char = content.charCodeAt(i);
-		hash = (hash << 5) - hash + char;
-		hash = hash & hash; // Convert to 32-bit integer
-	}
-	return hash.toString();
-}
-
-/**
- * Check if content has actually changed
- */
-function hasContentChanged(filePath: string, newContent: string): boolean {
-	if (!existsSync(filePath)) {
-		return true; // File doesn't exist, so it's a change
-	}
-
-	try {
-		const existingContent = readFileSync(filePath, 'utf8');
-		const existingHash = getContentHash(existingContent);
-		const newHash = getContentHash(newContent);
-		return existingHash !== newHash;
-	} catch {
-		// If we can't read the existing file, assume it changed
-		return true;
-	}
 }
 
 /**

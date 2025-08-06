@@ -1,38 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { writeFileSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
-
-/**
- * Create a simple hash from a string
- */
-function createHash(content: string): string {
-	let hash = 0;
-	for (let i = 0; i < content.length; i++) {
-		const char = content.charCodeAt(i);
-		hash = (hash << 5) - hash + char;
-		hash = hash & hash; // Convert to 32-bit integer
-	}
-	return hash.toString();
-}
-
-/**
- * Check if file content has actually changed
- */
-function hasContentChanged(filePath: string, newContent: string): boolean {
-	if (!existsSync(filePath)) {
-		return true; // File doesn't exist, so it's a change
-	}
-
-	try {
-		const existingContent = readFileSync(filePath, 'utf8');
-		const existingHash = createHash(existingContent);
-		const newHash = createHash(newContent);
-		return existingHash !== newHash;
-	} catch {
-		// If we can't read the existing file, assume it changed
-		return true;
-	}
-}
+import { hasContentChanged } from './shared-utils.js';
 
 // Types
 interface PendingFileWrite {

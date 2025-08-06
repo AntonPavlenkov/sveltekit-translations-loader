@@ -11,7 +11,6 @@ import { injectTranslationKeys } from './load-function-updater.js';
 import { buildRouteHierarchy, findPageTranslationUsage, setViteConfig } from './scanner.js';
 import { transformSvelteContent } from './svelte-transformer.js';
 import { generateTypeDeclarations } from './type-generator.js';
-
 // Constants
 const VIRTUAL_MODULE_ID = '@i18n';
 const VIRTUAL_MODULE_INTERNAL_ID = '\0@i18n';
@@ -72,18 +71,7 @@ function detectDevelopmentMode(): boolean {
 	);
 }
 
-/**
- * Create a simple hash from a string
- */
-function createHash(content: string): string {
-	let hash = 0;
-	for (let i = 0; i < content.length; i++) {
-		const char = content.charCodeAt(i);
-		hash = (hash << 5) - hash + char;
-		hash = hash & hash; // Convert to 32-bit integer
-	}
-	return hash.toString();
-}
+import { createHash } from './shared-utils.js';
 
 /**
  * Load default translations from the specified path

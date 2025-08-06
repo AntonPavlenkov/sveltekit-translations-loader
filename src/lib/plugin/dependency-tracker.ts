@@ -1,7 +1,8 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 import { basename, dirname, join, relative, resolve } from 'path';
 import { injectTranslationKeys } from './load-function-updater.js';
 import { scanComponentTree } from './scanner.js';
+import { readFileContentSilent } from './shared-utils.js';
 
 // Types
 export interface ComponentUsage {
@@ -95,17 +96,6 @@ function hasTranslationUsage(content: string): boolean {
 }
 
 /**
- * Read file content safely
- */
-function readFileContent(filePath: string): string | null {
-	try {
-		return readFileSync(filePath, 'utf-8');
-	} catch {
-		return null;
-	}
-}
-
-/**
  * Build dependency map by scanning all .svelte files
  */
 export function buildDependencyMap(routesDir: string, verbose = false): DependencyMap {
@@ -127,7 +117,7 @@ export function buildDependencyMap(routesDir: string, verbose = false): Dependen
 				if (stat.isDirectory()) {
 					scanDirectory(fullPath);
 				} else if (entry.endsWith('.svelte')) {
-					const content = readFileContent(fullPath);
+					const content = readFileContentSilent(fullPath);
 					if (content) {
 						const imports = extractComponentImports(content, fullPath);
 
@@ -187,7 +177,7 @@ export function buildDependencyMap(routesDir: string, verbose = false): Dependen
 						if (fullPath === routesPath) continue;
 						scanSrcForComponents(fullPath);
 					} else if (entry.endsWith('.svelte')) {
-						const content = readFileContent(fullPath);
+						const content = readFileContentSilent(fullPath);
 						if (content) {
 							const imports = extractComponentImports(content, fullPath);
 
@@ -280,7 +270,7 @@ export function findPageComponent(
 		}
 
 		// Check if this component uses translations
-		const content = readFileContent(path);
+		const content = readFileContentSilent(path);
 		if (content && hasTranslationUsage(content)) {
 			if (verbose) {
 				console.log(`🔍 Component ${path} uses translations`);
@@ -419,7 +409,7 @@ export async function handleComponentChange(
 	const dependencyMap = buildDependencyMap(routesDir, verbose);
 
 	// Check if this component or any of its users have translation usage
-	const componentContent = readFileContent(changedFilePath);
+	const componentContent = readFileContentSilent(changedFilePath);
 	const hasDirectUsage = componentContent && hasTranslationUsage(componentContent);
 
 	if (hasDirectUsage && verbose) {
@@ -431,7 +421,7 @@ export async function handleComponentChange(
 	let hasIndirectUsage = false;
 
 	for (const user of users) {
-		const userContent = readFileContent(user);
+		const userContent = readFileContentSilent(user);
 		if (userContent && hasTranslationUsage(userContent)) {
 			hasIndirectUsage = true;
 			if (verbose) {

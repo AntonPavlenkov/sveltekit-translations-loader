@@ -1,6 +1,7 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
+import { existsSync, readdirSync, statSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { getRoutePath, requiresSafeAccess } from './helpers.js';
+import { readFileContent } from './shared-utils.js';
 
 // Types
 export interface ViteConfig {
@@ -243,18 +244,6 @@ function extractTranslationKeys(content: string, hasDirectImports: boolean): Set
 	});
 
 	return usedKeys;
-}
-
-/**
- * Read file content safely
- */
-function readFileContent(filePath: string): string | null {
-	try {
-		return readFileSync(filePath, 'utf8');
-	} catch (error) {
-		console.error(`❌ Error reading ${filePath}:`, error);
-		return null;
-	}
 }
 
 /**
