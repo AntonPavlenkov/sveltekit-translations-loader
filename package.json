@@ -1,6 +1,6 @@
 {
 	"name": "sveltekit-translations-loader",
-	"version": "0.0.21",
+	"version": "0.0.22",
 	"description": "A powerful translation system for SvelteKit with automatic type generation and runtime injection",
 	"author": "Anton Pavlenkov",
 	"license": "MIT",
