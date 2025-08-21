@@ -73,6 +73,20 @@ function resolveAlias(importPath: string): string {
 		return importPath; // Not an alias
 	}
 
+	// Handle built-in SvelteKit aliases first
+	if (importPath.startsWith('$lib/')) {
+		return importPath.replace('$lib/', 'src/lib/');
+	}
+	if (importPath.startsWith('$app/')) {
+		return importPath.replace('$app/', 'src/app/');
+	}
+	if (importPath.startsWith('$env/')) {
+		return importPath.replace('$env/', 'src/env/');
+	}
+	if (importPath.startsWith('$components/')) {
+		return importPath.replace('$components/', 'src/components/');
+	}
+
 	// Get aliases from Vite config
 	const aliases = globalViteConfig.alias || globalViteConfig.resolve?.alias;
 	if (!aliases) {
@@ -282,9 +296,6 @@ function resolveImportPath(importPath: string, basePath: string): string {
 
 	if (resolvedAlias.startsWith('./') || resolvedAlias.startsWith('../')) {
 		return resolve(basePath, resolvedAlias);
-	} else if (resolvedAlias.startsWith('$lib/')) {
-		// Handle $lib alias
-		return resolve(process.cwd(), resolvedAlias);
 	} else if (resolvedAlias.startsWith('src/')) {
 		// Handle resolved aliases that point to src/
 		return resolve(process.cwd(), resolvedAlias);
