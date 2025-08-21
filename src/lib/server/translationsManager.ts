@@ -106,13 +106,27 @@ export class TranslationsManager {
 	private async loadAllTranslations(): Promise<void> {
 		const fallbackTranslations = this.translations[DEFAULT_LOCALE] || {};
 
-		for (const locale of this.supportedLocales) {
-			const translations = await loadLocaleTranslations(
-				locale,
-				this.config.getTranslationsForLocale,
-				this._defaultTranslations || {},
-				fallbackTranslations
-			);
+		// Load all translations simultaneously in parallel
+		const translationPromises = this.supportedLocales.map(async (locale) => {
+			try {
+				const translations = await loadLocaleTranslations(
+					locale,
+					this.config.getTranslationsForLocale,
+					this._defaultTranslations || {},
+					fallbackTranslations
+				);
+				return { locale, translations };
+			} catch (error) {
+				console.error(`Failed to load translations for locale ${locale}:`, error);
+				return { locale, translations: {} };
+			}
+		});
+
+		// Wait for all translations to load
+		const results = await Promise.all(translationPromises);
+
+		// Assign all translations at once
+		for (const { locale, translations } of results) {
 			this.translations[locale] = translations;
 		}
 	}
