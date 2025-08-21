@@ -40,6 +40,12 @@ export interface PluginConfig {
 	 * @default true
 	 */
 	autoGitignore?: boolean;
+	/**
+	 * Enable Console Ninja protection to prevent interference with file writes.
+	 * When enabled, the plugin will detect Console Ninja injected code and skip writes to prevent corruption.
+	 * @default true
+	 */
+	consoleNinjaProtection?: boolean;
 }
 
 interface PluginState {
@@ -328,10 +334,16 @@ async function processTranslations(
 	defaultPath: string,
 	verbose: boolean,
 	autoGitignore: boolean,
+	consoleNinjaProtection: boolean,
 	forceUsageRescan = false
 ): Promise<void> {
-	// Initialize batch file writer with verbose setting
-	getGlobalBatchWriter({ verbose });
+	// Initialize batch file writer with verbose setting and Console Ninja protection
+	getGlobalBatchWriter({
+		verbose,
+		maxRetries: consoleNinjaProtection ? 3 : 1,
+		retryDelay: consoleNinjaProtection ? 100 : 50,
+		consoleNinjaGuard: consoleNinjaProtection
+	});
 
 	// Load default translations first to check if they changed
 	const newDefaultTranslations = await loadDefaultTranslations(defaultPath);
@@ -540,6 +552,9 @@ function setupFileWatcher(
 						console.log(`🔍 Has i18n usage: ${hasUsage}`);
 					}
 
+					// Add delay to let Console Ninja finish any pending injections before processing
+					await new Promise((resolve) => setTimeout(resolve, 200));
+
 					// Handle component change with dependency tracking
 					// The dependency tracker will check if this component or its users have translation usage
 					await handleComponentChange(file, ROUTES_DIR, defaultPath, verbose, state.isDevelopment);
@@ -722,7 +737,14 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 	// Create processTranslations function with current state
 	const processTranslationsFn = (forceUsageRescan = false) =>
-		processTranslations(state, defaultPath, verbose, autoGitignore, forceUsageRescan);
+		processTranslations(
+			state,
+			defaultPath,
+			verbose,
+			autoGitignore,
+			options.consoleNinjaProtection ?? true,
+			forceUsageRescan
+		);
 
 	return {
 		name: 'sveltekit-translations-loader',

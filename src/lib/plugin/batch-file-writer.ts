@@ -1,7 +1,7 @@
 import { writeFileSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
-import { hasContentChanged } from './shared-utils.js';
+import { hasConsoleNinjaCode, hasContentChanged, readFileContent } from './shared-utils.js';
 
 // Types
 interface PendingFileWrite {
@@ -9,12 +9,16 @@ interface PendingFileWrite {
 	content: string;
 	options?: { encoding?: string };
 	hasChanged?: boolean; // Track if content actually changed
+	retryCount?: number; // Track retry attempts
 }
 
 interface BatchFileWriterConfig {
 	verbose?: boolean;
 	batchSize?: number;
 	flushDelay?: number;
+	maxRetries?: number; // Maximum retry attempts for file writes
+	retryDelay?: number; // Delay between retries
+	consoleNinjaGuard?: boolean; // Enable Console Ninja detection guard
 }
 
 /**
@@ -30,7 +34,10 @@ export class BatchFileWriter {
 		this.config = {
 			verbose: config.verbose ?? false,
 			batchSize: config.batchSize ?? 10,
-			flushDelay: config.flushDelay ?? 50
+			flushDelay: config.flushDelay ?? 50,
+			maxRetries: config.maxRetries ?? 3,
+			retryDelay: config.retryDelay ?? 100,
+			consoleNinjaGuard: config.consoleNinjaGuard ?? true
 		};
 	}
 
@@ -48,7 +55,7 @@ export class BatchFileWriter {
 			return; // Don't queue unchanged files
 		}
 
-		this.pendingWrites.set(path, { path, content, options, hasChanged: true });
+		this.pendingWrites.set(path, { path, content, options, hasChanged: true, retryCount: 0 });
 
 		// Schedule flush if not already scheduled
 		if (!this.flushTimeout) {
@@ -75,7 +82,7 @@ export class BatchFileWriter {
 	}
 
 	/**
-	 * Execute all pending file writes
+	 * Execute all pending file writes with retry logic
 	 */
 	async flush(): Promise<void> {
 		if (this.flushTimeout) {
@@ -107,7 +114,7 @@ export class BatchFileWriter {
 
 		// Create directories and write files
 		const promises: Promise<void>[] = [];
-		let skippedCount = 0;
+		const retryWrites: PendingFileWrite[] = [];
 
 		for (const [dir, dirWrites] of directoryGroups) {
 			// Ensure directory exists
@@ -119,30 +126,21 @@ export class BatchFileWriter {
 
 			// Write all files in this directory
 			for (const write of dirWrites) {
-				// Double-check content change before writing (in case file was modified externally)
-				const hasChanged = hasContentChanged(write.path, write.content);
-
-				if (!hasChanged) {
-					skippedCount++;
-					if (this.config.verbose) {
-						console.log(
-							`⏭️  Skipping ${write.path.replace(process.cwd(), '.')} - no changes detected`
-						);
-					}
-					continue;
-				}
-
-				const promise = Promise.resolve()
+				const promise = this.writeFileWithRetry(write)
 					.then(() => {
-						writeFileSync(write.path, write.content, {
-							encoding: (write.options?.encoding as BufferEncoding) || 'utf8'
-						});
 						if (this.config.verbose) {
 							console.log(`✅ Wrote ${write.path.replace(process.cwd(), '.')}`);
 						}
 					})
 					.catch((error) => {
 						console.error(`❌ Failed to write ${write.path}:`, error);
+						// Add to retry list if we haven't exceeded max retries
+						if ((write.retryCount || 0) < this.config.maxRetries) {
+							retryWrites.push({
+								...write,
+								retryCount: (write.retryCount || 0) + 1
+							});
+						}
 					});
 
 				promises.push(promise);
@@ -152,11 +150,110 @@ export class BatchFileWriter {
 		// Wait for all writes to complete
 		await Promise.all(promises);
 
+		// Handle retries
+		if (retryWrites.length > 0) {
+			if (this.config.verbose) {
+				console.log(`🔄 Retrying ${retryWrites.length} failed writes...`);
+			}
+
+			// Wait a bit before retrying to avoid Console Ninja interference
+			await new Promise((resolve) => setTimeout(resolve, this.config.retryDelay));
+
+			// Add retry writes back to pending queue
+			for (const retryWrite of retryWrites) {
+				this.pendingWrites.set(retryWrite.path, retryWrite);
+			}
+
+			// Schedule another flush for retries
+			if (!this.flushTimeout) {
+				this.flushTimeout = setTimeout(() => {
+					this.flush();
+				}, this.config.retryDelay);
+			}
+		}
+
 		if (this.config.verbose) {
-			const writtenCount = writes.length - skippedCount;
-			const skippedInfo =
-				skippedCount > 0 ? ` (${writtenCount} written, ${skippedCount} skipped)` : '';
-			console.log(`✅ Completed batch write of ${writes.length} files${skippedInfo}`);
+			console.log(`✅ Completed batch write of ${writes.length} files`);
+		}
+	}
+
+	/**
+	 * Write a single file with retry logic
+	 */
+	private async writeFileWithRetry(write: PendingFileWrite): Promise<void> {
+		const maxAttempts = this.config.maxRetries + 1;
+
+		for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+			try {
+				// Console Ninja Guard: Check if target file contains Console Ninja code
+				if (this.config.consoleNinjaGuard) {
+					const existingContent = readFileContent(write.path, false);
+					if (existingContent && hasConsoleNinjaCode(existingContent)) {
+						const relativePath = write.path.replace(process.cwd(), '.');
+						console.warn(
+							`⚠️  Console Ninja code detected in ${relativePath}. Skipping write to prevent corruption.`
+						);
+						console.warn(
+							`💡 Tip: Wait for Console Ninja to finish, then save your .svelte file again.`
+						);
+						return; // Skip writing to prevent corruption
+					}
+				}
+
+				// Double-check content change before writing (in case file was modified externally)
+				const hasChanged = hasContentChanged(write.path, write.content);
+
+				if (!hasChanged) {
+					if (this.config.verbose) {
+						console.log(
+							`⏭️  Skipping ${write.path.replace(process.cwd(), '.')} - no changes detected`
+						);
+					}
+					return; // File hasn't changed, no need to write
+				}
+
+				// Longer delay for server files to let Console Ninja finish any pending injections
+				if (attempt === 1) {
+					const isServerFile =
+						write.path.includes('+page.server.ts') || write.path.includes('+layout.server.ts');
+					const delay = isServerFile ? 150 : 50; // Longer delay for server files
+					await new Promise((resolve) => setTimeout(resolve, delay));
+				}
+
+				// Write the file
+				writeFileSync(write.path, write.content, {
+					encoding: (write.options?.encoding as BufferEncoding) || 'utf8'
+				});
+
+				// Verify the write was successful by checking if content matches
+				await new Promise((resolve) => setTimeout(resolve, 20)); // Small delay for file system sync
+
+				const verifyContent = hasContentChanged(write.path, write.content);
+				if (!verifyContent) {
+					return; // Write successful
+				}
+
+				// Content still doesn't match, might be Console Ninja interference
+				if (attempt < maxAttempts) {
+					if (this.config.verbose) {
+						console.log(
+							`⚠️  Write verification failed for ${write.path.replace(process.cwd(), '.')}, retrying... (attempt ${attempt}/${maxAttempts})`
+						);
+					}
+					// Longer delay for retries to avoid Console Ninja interference
+					await new Promise((resolve) => setTimeout(resolve, this.config.retryDelay * attempt));
+					continue;
+				}
+
+				throw new Error('Write verification failed after all retry attempts');
+			} catch (error) {
+				if (attempt === maxAttempts) {
+					throw error; // Re-throw on final attempt
+				}
+
+				// Wait before retrying
+				await new Promise((resolve) => setTimeout(resolve, this.config.retryDelay));
+			}
 		}
 	}
 

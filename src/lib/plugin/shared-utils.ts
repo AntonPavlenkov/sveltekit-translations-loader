@@ -23,13 +23,31 @@ export function hasContentChanged(filePath: string, newContent: string): boolean
 
 	try {
 		const existingContent = readFileSync(filePath, 'utf8');
-		const existingHash = createHash(existingContent);
-		const newHash = createHash(newContent);
-		return existingHash !== newHash;
+
+		// Simple string comparison - no filtering needed since we prevent writes when Console Ninja is detected
+		return existingContent !== newContent;
 	} catch {
 		// If we can't read the existing file, assume it changed
 		return true;
 	}
+}
+
+/**
+ * Detect if Console Ninja code is present in the content
+ */
+export function hasConsoleNinjaCode(content: string): boolean {
+	// Check for various Console Ninja patterns
+	const consoleNinjaPatterns = [
+		/oo_[a-zA-Z_][a-zA-Z0-9_]*/, // Console Ninja function names
+		/\/\* istanbul ignore next \*\/.*function.*oo_/, // Function definitions
+		/globalThis\._console_ninja/, // Global references
+		/console-ninja/, // Direct references
+		/\(0,\s*eval\)\(/, // Eval statements
+		/\/\* c8 ignore start \*\//, // Coverage ignore comments
+		/_console_ninja_session/ // Session variables
+	];
+
+	return consoleNinjaPatterns.some((pattern) => pattern.test(content));
 }
 
 /**

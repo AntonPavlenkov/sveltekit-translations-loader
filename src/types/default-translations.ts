@@ -13,10 +13,10 @@ const defaultTranslations = {
 	newLine: 'This is a new line',
 	pageContent: 'This page content demonstrates nested route translation inheritance',
 	continueFn: 'Continue {{count}}',
-	'test_lib_page_title': 'Test $lib Imports',
-	'test_lib_page_description': 'This page tests deep scanning with $lib imports',
-	'lib_component_title': 'Component from $lib',
-	'lib_component_message': 'This component is imported from $lib and should be scanned'
+	test_lib_page_title: 'Test $lib Imports',
+	test_lib_page_description: 'This page tests deep scanning with $lib imports',
+	lib_component_title: 'Component from $lib',
+	lib_component_message: 'This component is imported from $lib and should be scanned'
 } as const;
 
 export default defaultTranslations;

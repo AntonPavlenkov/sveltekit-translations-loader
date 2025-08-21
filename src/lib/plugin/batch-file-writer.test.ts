@@ -1,7 +1,12 @@
 import { existsSync, readFileSync, rmdirSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { BatchFileWriter, flushFileWrites, queueFileWrite } from './batch-file-writer.js';
+import {
+	BatchFileWriter,
+	flushFileWrites,
+	getGlobalBatchWriter,
+	queueFileWrite
+} from './batch-file-writer.js';
 
 describe('BatchFileWriter', () => {
 	const testDir = join(process.cwd(), 'test-batch-writer');
@@ -31,17 +36,22 @@ describe('BatchFileWriter', () => {
 	});
 
 	it('should write files in batches', async () => {
-		const writer = new BatchFileWriter({ verbose: false, batchSize: 2, flushDelay: 10 });
+		const writer = new BatchFileWriter({
+			verbose: false,
+			batchSize: 2,
+			flushDelay: 10,
+			consoleNinjaGuard: false
+		});
 
 		// Queue multiple writes
 		writer.queueWrite(testFile1, 'content1');
 		writer.queueWrite(testFile2, 'content2');
 
-		// Force flush
+		// Force flush and wait for completion
 		await writer.forceFlush();
 
-		// Add a small delay to ensure files are written to disk
-		await new Promise((resolve) => setTimeout(resolve, 10));
+		// Add a delay to ensure files are written to disk
+		await new Promise((resolve) => setTimeout(resolve, 100));
 
 		// Verify files were written
 		expect(existsSync(testFile1)).toBe(true);
@@ -51,7 +61,8 @@ describe('BatchFileWriter', () => {
 	});
 
 	it('should handle global batch writer', async () => {
-		// Use global batch writer
+		// Use global batch writer with Console Ninja guard disabled for testing
+		getGlobalBatchWriter({ consoleNinjaGuard: false });
 		queueFileWrite(testFile1, 'global content');
 		await flushFileWrites();
 
@@ -62,7 +73,7 @@ describe('BatchFileWriter', () => {
 
 	it('should create directories automatically', async () => {
 		const nestedFile = join(testDir, 'nested', 'file.txt');
-		const writer = new BatchFileWriter();
+		const writer = new BatchFileWriter({ consoleNinjaGuard: false });
 
 		writer.queueWrite(nestedFile, 'nested content');
 		await writer.forceFlush();
@@ -73,7 +84,7 @@ describe('BatchFileWriter', () => {
 	});
 
 	it('should handle multiple writes to same file', async () => {
-		const writer = new BatchFileWriter();
+		const writer = new BatchFileWriter({ consoleNinjaGuard: false });
 
 		// Queue multiple writes to same file (last one should win)
 		writer.queueWrite(testFile1, 'first content');
@@ -88,7 +99,7 @@ describe('BatchFileWriter', () => {
 	});
 
 	it('should skip unchanged files', async () => {
-		const writer = new BatchFileWriter({ verbose: true });
+		const writer = new BatchFileWriter({ verbose: true, consoleNinjaGuard: false });
 
 		// Write initial content
 		writer.queueWrite(testFile1, 'initial content');
@@ -104,7 +115,7 @@ describe('BatchFileWriter', () => {
 	});
 
 	it('should write changed content even if file exists', async () => {
-		const writer = new BatchFileWriter();
+		const writer = new BatchFileWriter({ consoleNinjaGuard: false });
 
 		// Write initial content
 		writer.queueWrite(testFile1, 'initial content');
