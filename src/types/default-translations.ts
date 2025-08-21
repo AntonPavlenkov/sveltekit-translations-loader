@@ -11,7 +11,8 @@ const defaultTranslations = {
 	pageTitle: 'Nested Page Title',
 	testRealTime: 'Testing real-time generation with new approach!',
 	newLine: 'This is a new line',
-	pageContent: 'This page content demonstrates nested route translation inheritance'
+	pageContent: 'This page content demonstrates nested route translation inheritance',
+	continueFn: 'Continue {{count}}'
 } as const;
 
 export default defaultTranslations;

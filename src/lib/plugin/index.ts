@@ -121,7 +121,19 @@ function shouldReprocessFile(file: string, defaultPath: string): boolean {
 	// For .svelte files in routes directory or any .svelte files that might be used by pages
 	// This will be done in the file watcher callback for better performance
 	if (file.endsWith('.svelte')) {
-		return true; // We'll filter this further in the watcher
+		// Process .svelte files in routes directory
+		if (file.includes('src/routes/')) {
+			return true;
+		}
+
+		// Also process .svelte files in shared component directories that might be used by pages
+		if (
+			file.includes('src/lib/') ||
+			file.includes('src/components/') ||
+			file.includes('src/variants/')
+		) {
+			return true;
+		}
 	}
 
 	return false;
@@ -465,6 +477,45 @@ function setupFileWatcher(
 		addSubdirectories(routesDir);
 	}
 
+	// Also watch for components outside routes that might be used by page components
+	const projectRoot = resolve(process.cwd());
+	const srcDir = join(projectRoot, 'src');
+
+	if (existsSync(srcDir)) {
+		// Watch src/lib and src/components directories for shared components
+		const libDir = join(srcDir, 'lib');
+		const componentsDir = join(srcDir, 'components');
+		const variantsDir = join(srcDir, 'variants');
+
+		[libDir, componentsDir, variantsDir].forEach((dir) => {
+			if (existsSync(dir)) {
+				server.watcher.add(dir);
+				if (verbose) {
+					console.log(`👁️  Watching shared components directory: ${dir}`);
+				}
+
+				// Recursively add subdirectories
+				function addSharedSubdirectories(sharedDir: string) {
+					try {
+						const entries = readdirSync(sharedDir);
+						for (const entry of entries) {
+							const fullPath = join(sharedDir, entry);
+							const stat = statSync(fullPath);
+							if (stat.isDirectory()) {
+								server.watcher.add(fullPath);
+								addSharedSubdirectories(fullPath);
+							}
+						}
+					} catch {
+						// Ignore errors for directories we can't read
+					}
+				}
+
+				addSharedSubdirectories(dir);
+			}
+		});
+	}
+
 	// Create debounced processor with shorter delay for better responsiveness
 	const debouncedProcessor = createDebouncedProcessor(state, processTranslationsFn, verbose);
 
@@ -519,7 +570,7 @@ function setupFileWatcher(
 				);
 			}
 
-			// Force usage rescan for .svelte file changes, normal processing for translation changes
+			// Force usage rescan for .svelte files, normal processing for translation changes
 			if (isSvelteFile) {
 				debouncedProcessor(true); // Force usage rescan for .svelte files
 			} else {
@@ -530,11 +581,7 @@ function setupFileWatcher(
 
 	// Listen to new file additions
 	server.watcher.on('add', async (file: string) => {
-		if (
-			file.endsWith('.svelte') &&
-			file.includes(ROUTES_DIR) &&
-			shouldReprocessFile(file, defaultPath)
-		) {
+		if (file.endsWith('.svelte') && shouldReprocessFile(file, defaultPath)) {
 			try {
 				const content = readFileSync(file, 'utf8');
 				const hasUsage = hasI18nUsage(content);
@@ -568,11 +615,7 @@ function setupFileWatcher(
 
 	// Listen to file deletions (in case a component is removed)
 	server.watcher.on('unlink', async (file: string) => {
-		if (
-			file.endsWith('.svelte') &&
-			file.includes(ROUTES_DIR) &&
-			shouldReprocessFile(file, defaultPath)
-		) {
+		if (file.endsWith('.svelte') && shouldReprocessFile(file, defaultPath)) {
 			if (verbose) {
 				console.log(`🗑️  .svelte file removed: ${basename(file)}, scheduling usage rescan...`);
 			}

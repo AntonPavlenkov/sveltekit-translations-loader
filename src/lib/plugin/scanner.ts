@@ -31,7 +31,9 @@ const DIRECT_FUNCTION_PATTERN = /\b([a-zA-Z][a-zA-Z0-9]*)\s*\(/g; // hello(), we
 const IMPORT_PATTERNS = [
 	/import\s+(\w+)\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import Component from './Component.svelte'
 	/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import { Component } from './Component.svelte'
-	/import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+\.svelte)['"]/g // import * as Components from './Component.svelte'
+	/import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import * as Components from './Component.svelte'
+	/import\s+(\w+)\s*,\s*\{([^}]+)\}\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import Component, { Other } from './Component.svelte'
+	/import\s+\{([^}]+)\}\s*,\s*(\w+)\s+from\s+['"]([^'"]+\.svelte)['"]/g // import { Component } from './Component.svelte'
 ] as const;
 
 const DYNAMIC_IMPORT_PATTERNS = [
@@ -40,7 +42,9 @@ const DYNAMIC_IMPORT_PATTERNS = [
 	/const\s+\w+\s*=\s*await\s+import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // const c = await import('Component.svelte')
 	/let\s+\w+\s*=\s*await\s+import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // let c = await import('Component.svelte')
 	/var\s+\w+\s*=\s*await\s+import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // var c = await import('Component.svelte')
-	/=\s*import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g // = import('Component.svelte')
+	/=\s*import\s*\(\s*['"]([^'"]+\.svelte)['"]\s*\)/g, // = import('Component.svelte')
+	/import\s*\(\s*`([^`]+\.svelte)`\s*\)/g, // import(`Component.svelte`)
+	/await\s+import\s*\(\s*`([^`]+\.svelte)`\s*\)/g // await import(`Component.svelte`)
 ] as const;
 
 const ROUTE_FILES = {
@@ -299,11 +303,19 @@ function extractImportPaths(content: string, basePath: string): string[] {
 	IMPORT_PATTERNS.forEach((pattern) => {
 		let match;
 		while ((match = pattern.exec(content)) !== null) {
-			const importPath = match[match.length - 1]; // Last capture group is always the path
+			// Handle different pattern formats
+			let importPath: string;
+			if (match.length >= 3) {
+				// For patterns with multiple capture groups, the last one is usually the path
+				importPath = match[match.length - 1];
+			} else {
+				importPath = match[1];
+			}
+
 			const resolvedPath = resolveImportPath(importPath, basePath);
 
-			// Only include if file exists
-			if (existsSync(resolvedPath)) {
+			// Only include if file exists and it's a .svelte file
+			if (existsSync(resolvedPath) && resolvedPath.endsWith('.svelte')) {
 				imports.push(resolvedPath);
 			}
 		}
@@ -316,8 +328,8 @@ function extractImportPaths(content: string, basePath: string): string[] {
 			const importPath = match[1]; // First capture group is the path for dynamic imports
 			const resolvedPath = resolveImportPath(importPath, basePath);
 
-			// Only include if file exists
-			if (existsSync(resolvedPath)) {
+			// Only include if file exists and it's a .svelte file
+			if (existsSync(resolvedPath) && resolvedPath.endsWith('.svelte')) {
 				imports.push(resolvedPath);
 			}
 		}
@@ -351,9 +363,18 @@ export function scanComponentTree(
 
 	// Avoid circular dependencies
 	if (visited.has(filePath)) {
+		if (verbose) {
+			console.log(
+				`🔄 Circular dependency detected, skipping: ${filePath.replace(process.cwd(), '.')}`
+			);
+		}
 		return allKeys;
 	}
 	visited.add(filePath);
+
+	if (verbose) {
+		console.log(`🔍 Scanning component: ${filePath.replace(process.cwd(), '.')}`);
+	}
 
 	// Scan this component for translation usage
 	const keysFromThisFile = scanTranslationUsage(filePath);
@@ -370,14 +391,23 @@ export function scanComponentTree(
 	const imports = parseImports(filePath);
 	if (verbose && imports.length > 0) {
 		console.log(
-			`📦 Scanning ${imports.length} imports in ${filePath.replace(process.cwd(), '.')}:`,
+			`📦 Found ${imports.length} imports in ${filePath.replace(process.cwd(), '.')}:`,
 			imports.map((p) => p.replace(process.cwd(), '.'))
 		);
 	}
 
 	for (const importPath of imports) {
+		if (verbose) {
+			console.log(`🔗 Following import: ${importPath.replace(process.cwd(), '.')}`);
+		}
 		const keysFromImport = scanComponentTree(importPath, visited, verbose);
 		keysFromImport.forEach((key) => allKeys.add(key));
+	}
+
+	if (verbose) {
+		console.log(
+			`✅ Finished scanning ${filePath.replace(process.cwd(), '.')}, total keys: ${allKeys.size}`
+		);
 	}
 
 	return allKeys;
@@ -423,6 +453,12 @@ function processRouteFile(
 	verbose: boolean
 ): void {
 	const { filePath, serverFile, routePath } = routeFile;
+
+	if (verbose) {
+		console.log(`🔍 Processing route file: ${filePath.replace(process.cwd(), '.')} (${routePath})`);
+	}
+
+	// Use deep scanning to find all translation keys from this component and its dependencies
 	const usedKeys = scanComponentTree(filePath, new Set(), verbose);
 
 	// Always add the page to ensure server files are created
@@ -436,12 +472,12 @@ function processRouteFile(
 
 	if (verbose && usedKeys.size > 0) {
 		console.log(
-			`🔍 Found ${usedKeys.size} translation keys in ${filePath.replace(process.cwd(), '.')}:`,
+			`🔍 Found ${usedKeys.size} translation keys in ${filePath.replace(process.cwd(), '.')} (including dependencies):`,
 			Array.from(usedKeys)
 		);
 	} else if (verbose) {
 		console.log(
-			`📄 No translation keys found in ${filePath.replace(process.cwd(), '.')} - server file will be created for future use`
+			`📄 No translation keys found in ${filePath.replace(process.cwd(), '.')} or its dependencies - server file will be created for future use`
 		);
 	}
 }

@@ -119,6 +119,7 @@ export function buildDependencyMap(routesDir: string, verbose = false): Dependen
 				} else if (entry.endsWith('.svelte')) {
 					const content = readFileContentSilent(fullPath);
 					if (content) {
+						// Use deep scanning to get all component imports including nested ones
 						const imports = extractComponentImports(content, fullPath);
 
 						// Initialize component usage if not exists
@@ -179,6 +180,7 @@ export function buildDependencyMap(routesDir: string, verbose = false): Dependen
 					} else if (entry.endsWith('.svelte')) {
 						const content = readFileContentSilent(fullPath);
 						if (content) {
+							// Use deep scanning to get all component imports including nested ones
 							const imports = extractComponentImports(content, fullPath);
 
 							// Initialize component usage if not exists

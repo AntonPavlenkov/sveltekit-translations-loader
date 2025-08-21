@@ -1,29 +1,23 @@
-import type { PageServerLoad } from './$types.js';
-
-const customFunction = () => {
-	return 'This is custom code that should be preserved';
-};
-const customVariable = 'custom value';
+import type { PageServerLoad } from './$types';
 
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/server';
 const _translationKeys: string[] = [
-	'pageTitle',
 	'hello',
 	'welcome',
 	'user-count',
 	'pageContent',
-	'continueFn',
 	'goodbye',
-	'layoutDescription'
+	'continueFn'
 ];
 // END AUTO-GENERATED CODE
 
 export const load: PageServerLoad = async () => {
+	// This file will be automatically enhanced by the plugin
+	// with translation keys from all nested components
 	return {
-		customFunction: customFunction(),
-		customVariable,
+		// The plugin will inject translation keys here,
 		_loadedTranslations: _getTranslations(_translationKeys)
 	};
 };
