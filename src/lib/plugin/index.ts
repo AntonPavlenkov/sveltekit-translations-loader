@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
-import { basename, join, resolve } from 'path';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
+import { basename, dirname, join, resolve } from 'path';
 import type { Plugin } from 'vite';
 
 // Import from separated modules
@@ -28,7 +28,6 @@ const DEBOUNCE_DELAY = 100; // 100ms debounce delay for better responsiveness
 // Types
 export interface PluginConfig {
 	defaultPath: string;
-	runtimePath: string;
 	verbose?: boolean;
 	/**
 	 * Remove @i18n imports during build and replace with direct page.data access for better performance.
@@ -36,6 +35,11 @@ export interface PluginConfig {
 	 * @default false
 	 */
 	removeFunctionsOnBuild?: boolean;
+	/**
+	 * Automatically add generated messages directory to .gitignore
+	 * @default true
+	 */
+	autoGitignore?: boolean;
 }
 
 interface PluginState {
@@ -78,8 +82,18 @@ import { createHash } from './shared-utils.js';
  */
 async function loadDefaultTranslations(defaultPath: string): Promise<Record<string, string>> {
 	const translationsPath = resolve(defaultPath);
-	const translationsModule = await import(`file://${translationsPath}?t=${Date.now()}`);
-	return translationsModule.default || translationsModule;
+	try {
+		// Use dynamic import with timestamp for cache busting
+		const timestamp = Date.now();
+		const translationsModule = await import(
+			`file://${translationsPath}?t=${timestamp}&rand=${Math.random()}`
+		);
+
+		return translationsModule.default || translationsModule;
+	} catch (error) {
+		console.error(`Failed to load translations from ${translationsPath}:`, error);
+		return {};
+	}
 }
 
 /**
@@ -141,8 +155,131 @@ function isSSRTransformation(id: string, options?: TransformOptions): boolean {
  * Generate virtual module content
  */
 function generateVirtualModuleContent(runtimePath: string): string {
+	const indexPath = join(runtimePath, 'index');
 	return `// Virtual module for @i18n
-export * from '${resolve(runtimePath)}';`;
+import * as translations from '${resolve(indexPath)}';
+
+// Create a proxy that provides helpful error messages for missing functions
+const translationProxy = new Proxy(translations, {
+	get(target, prop) {
+		if (prop in target) {
+			return target[prop];
+		}
+		
+		// If the function doesn't exist, return a helpful error function
+		return function(...args) {
+			const availableFunctions = Object.keys(translations).join(', ');
+			throw new Error(
+				\`Translation function '\${String(prop)}' not found. \` +
+				\`This function was likely removed from default-translations.ts. \` +
+				\`\\n\\nPlease either:\` +
+				\`\\n1. Add the '\${String(prop)}' key back to default-translations.ts, or\` +
+				\`\\n2. Remove the usage of t.\${String(prop)}() from your components\` +
+				\`\\n\\nAvailable functions: [\${availableFunctions}]\`
+			);
+		};
+	}
+});
+
+export default translationProxy;
+export * from '${resolve(indexPath)}';`;
+}
+
+/**
+ * Generate runtime path from default path
+ */
+function generateRuntimePath(defaultPath: string): string {
+	const defaultDir = dirname(defaultPath);
+	return join(defaultDir, 'messages-generated');
+}
+
+/**
+ * Check if we're running in a CI environment
+ */
+function isCI(): boolean {
+	return !!(
+		process.env.CI ||
+		process.env.CONTINUOUS_INTEGRATION ||
+		process.env.BUILD_NUMBER ||
+		process.env.JENKINS_URL ||
+		process.env.GITHUB_ACTIONS ||
+		process.env.GITLAB_CI ||
+		process.env.CIRCLECI ||
+		process.env.TRAVIS ||
+		process.env.BUILDKITE ||
+		process.env.DRONE ||
+		process.env.TF_BUILD
+	);
+}
+
+/**
+ * Add generated messages directory to .gitignore if it exists and entry is not already present
+ */
+function addToGitignore(messagesPath: string, verbose: boolean): void {
+	// Skip in CI environments
+	if (isCI()) {
+		if (verbose) {
+			console.log('🔄 Skipping .gitignore modification in CI environment');
+		}
+		return;
+	}
+
+	const gitignorePath = resolve('.gitignore');
+
+	if (!existsSync(gitignorePath)) {
+		if (verbose) {
+			console.log('📄 No .gitignore file found, skipping automatic addition');
+		}
+		return;
+	}
+
+	try {
+		// Read existing .gitignore content
+		const gitignoreContent = readFileSync(gitignorePath, 'utf8');
+		const lines = gitignoreContent.split('\n');
+
+		// Create the entry to add (with trailing slash to match directory)
+		const entryToAdd = messagesPath.replace(/\\/g, '/') + '/';
+
+		// Check if the entry already exists (exact match or pattern match)
+		const entryExists = lines.some((line) => {
+			const trimmedLine = line.trim();
+			return (
+				trimmedLine === entryToAdd ||
+				trimmedLine === messagesPath.replace(/\\/g, '/') ||
+				trimmedLine.includes('messages-generated')
+			);
+		});
+
+		if (entryExists) {
+			if (verbose) {
+				console.log('✅ .gitignore already contains messages-generated entry');
+			}
+			return;
+		}
+
+		// Add the entry with a comment
+		const newLines = [
+			...lines,
+			'',
+			'# Auto-generated by sveltekit-translations-loader',
+			entryToAdd
+		];
+
+		// Write back to .gitignore
+		writeFileSync(gitignorePath, newLines.join('\n'));
+
+		if (verbose) {
+			console.log(`✅ Added '${entryToAdd}' to .gitignore`);
+		}
+	} catch (error) {
+		if (verbose) {
+			console.warn(
+				'⚠️ Failed to update .gitignore:',
+				error instanceof Error ? error.message : error
+			);
+		}
+	}
 }
 
 /**
@@ -177,8 +314,8 @@ async function processRouteHierarchy(
 async function processTranslations(
 	state: PluginState,
 	defaultPath: string,
-	runtimePath: string,
 	verbose: boolean,
+	autoGitignore: boolean,
 	forceUsageRescan = false
 ): Promise<void> {
 	// Initialize batch file writer with verbose setting
@@ -217,11 +354,21 @@ async function processTranslations(
 
 	// Only regenerate translation functions and types if translations changed
 	if (translationsChanged) {
+		// Generate runtime path from default path
+		const runtimePath = generateRuntimePath(defaultPath);
+
 		// Generate base translation functions
 		await generateTranslations(defaultPath, runtimePath, verbose, state.isDevelopment);
 
 		// Generate TypeScript declarations for the virtual module
 		await generateTypeDeclarations(defaultPath, verbose, runtimePath);
+
+		// Automatically add to .gitignore if enabled
+		if (autoGitignore) {
+			addToGitignore(runtimePath, verbose);
+		} else if (verbose) {
+			console.log(`📝 Note: Consider adding '${runtimePath}/' to your .gitignore file`);
+		}
 	}
 
 	// Always scan for translation usage and auto-inject into load functions
@@ -263,7 +410,7 @@ function createDebouncedProcessor(
 		// Set new timeout
 		state.processingTimeout = setTimeout(async () => {
 			if (verbose) {
-				console.log('🔄 Debounced processing triggered');
+				console.log('🔄 Debounced processing triggered', { forceUsageRescan });
 			}
 			await processTranslationsFn(forceUsageRescan);
 		}, DEBOUNCE_DELAY);
@@ -286,7 +433,11 @@ function setupFileWatcher(
 	verbose: boolean
 ): void {
 	// Watch the default translations file
-	server.watcher.add(resolve(defaultPath));
+	const resolvedDefaultPath = resolve(defaultPath);
+	if (verbose) {
+		console.log(`👁️  Setting up file watcher for: ${resolvedDefaultPath}`);
+	}
+	server.watcher.add(resolvedDefaultPath);
 
 	// Watch the routes directory for .svelte file changes
 	const routesDir = resolve(ROUTES_DIR);
@@ -318,6 +469,9 @@ function setupFileWatcher(
 	const debouncedProcessor = createDebouncedProcessor(state, processTranslationsFn, verbose);
 
 	server.watcher.on('change', async (file: string) => {
+		if (verbose) {
+			console.log(`📝 File changed: ${file}`);
+		}
 		// Apply filtering to prevent unnecessary reprocessing
 		if (shouldReprocessFile(file, defaultPath)) {
 			// Check if this is a translation file change or svelte file change
@@ -366,7 +520,11 @@ function setupFileWatcher(
 			}
 
 			// Force usage rescan for .svelte file changes, normal processing for translation changes
-			debouncedProcessor(isSvelteFile);
+			if (isSvelteFile) {
+				debouncedProcessor(true); // Force usage rescan for .svelte files
+			} else {
+				debouncedProcessor(false); // Normal processing for translation changes
+			}
 		}
 	});
 
@@ -496,7 +654,12 @@ function handleTransform(
  * Main plugin function
  */
 export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
-	const { defaultPath, runtimePath, verbose = false, removeFunctionsOnBuild = false } = options;
+	const {
+		defaultPath,
+		verbose = false,
+		removeFunctionsOnBuild = false,
+		autoGitignore = true
+	} = options;
 
 	// Log build optimization info
 	if (removeFunctionsOnBuild && verbose) {
@@ -516,10 +679,15 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 	// Create processTranslations function with current state
 	const processTranslationsFn = (forceUsageRescan = false) =>
-		processTranslations(state, defaultPath, runtimePath, verbose, forceUsageRescan);
+		processTranslations(state, defaultPath, verbose, autoGitignore, forceUsageRescan);
 
 	return {
 		name: 'sveltekit-translations-loader',
+
+		async config() {
+			// Ensure messages are generated before any other plugins try to resolve them
+			await processTranslationsFn();
+		},
 
 		configResolved(config: BuildConfig) {
 			// Detect if we're in production build mode
@@ -556,6 +724,8 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 		load(id: string) {
 			if (id === VIRTUAL_MODULE_INTERNAL_ID) {
+				// Generate runtime path from default path
+				const runtimePath = generateRuntimePath(defaultPath);
 				// Return the content that should be loaded for the virtual module
 				return generateVirtualModuleContent(runtimePath);
 			}

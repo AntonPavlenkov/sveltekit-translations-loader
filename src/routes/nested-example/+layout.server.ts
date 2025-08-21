@@ -7,7 +7,6 @@ const _translationKeys: string[] = [
 	'hello',
 	'hey',
 	'pageTitle',
-	'pageContent',
 	'nested-params',
 	'goodbye',
 	'welcome',

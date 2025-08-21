@@ -1,5 +1,5 @@
-import { mkdir } from 'fs/promises';
-import { dirname, join, resolve } from 'path';
+import { mkdir, rm } from 'fs/promises';
+import { join, resolve } from 'path';
 import { forceFlushFileWrites, queueFileWrite, queueFileWrites } from './batch-file-writer.js';
 import { generateTypeScriptDeclarations, sanitizeFunctionName } from './helpers.js';
 
@@ -191,6 +191,27 @@ function generateIndexFileContent(entries: TranslationEntry[]): string {
 }
 
 /**
+ * Clean up the entire messages-generated directory and recreate it
+ */
+async function cleanupAndRecreateDirectory(
+	runtimeDir: string,
+	verbose: boolean = false
+): Promise<void> {
+	try {
+		// Remove the entire directory if it exists
+		await rm(runtimeDir, { recursive: true, force: true });
+
+		if (verbose) {
+			console.log(`🗑️  Wiped ${runtimeDir} directory`);
+		}
+	} catch (error) {
+		if (verbose) {
+			console.warn('⚠️  Failed to cleanup directory:', error);
+		}
+	}
+}
+
+/**
  * Generate all output files
  */
 async function generateOutputFiles(
@@ -228,9 +249,8 @@ export async function generateTranslations(
 		// Read default translations
 		const defaultTranslations = await loadDefaultTranslations(defaultPath);
 
-		// Create runtime directory
-		const runtimeDir = dirname(runtimePath);
-		await mkdir(runtimeDir, { recursive: true });
+		// Create runtime directory (runtimePath is already the messages directory)
+		await mkdir(runtimePath, { recursive: true });
 
 		// Create translation entries
 		const entries = Object.entries(defaultTranslations).map(([key, value]) =>
@@ -240,8 +260,11 @@ export async function generateTranslations(
 		// Configuration for file generation
 		const config: FunctionGenerationConfig = {
 			development,
-			runtimeDir
+			runtimeDir: runtimePath
 		};
+
+		// Pass verbose flag to cleanup function
+		await cleanupAndRecreateDirectory(runtimePath, verbose);
 
 		// Generate all output files
 		await generateOutputFiles(entries, config, defaultTranslations);

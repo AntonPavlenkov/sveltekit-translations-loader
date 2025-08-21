@@ -1,7 +1,7 @@
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/server';
-const _translationKeys: string[] = ['hey', 'hello'];
+const _translationKeys: string[] = ['hey'];
 // END AUTO-GENERATED CODE
 
 export const load = async () => {

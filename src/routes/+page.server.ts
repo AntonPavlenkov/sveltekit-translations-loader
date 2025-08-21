@@ -13,7 +13,6 @@ const _translationKeys: string[] = [
 	'hello',
 	'welcome',
 	'user-count',
-	'pageContent',
 	'goodbye',
 	'layoutDescription'
 ];

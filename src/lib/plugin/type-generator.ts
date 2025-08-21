@@ -175,7 +175,7 @@ function generateTypeScriptDeclarations(
  * Determine output directory and file path
  */
 function getOutputPath(runtimePath?: string): { outputDir: string; virtualModulePath: string } {
-	const outputDir = runtimePath ? resolve(runtimePath, '..') : resolve('src');
+	const outputDir = runtimePath ? runtimePath : resolve('src');
 	const virtualModulePath = resolve(outputDir, 'sveltekit-translations-loader.d.ts');
 
 	return { outputDir, virtualModulePath };

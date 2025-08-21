@@ -278,7 +278,6 @@ export default {
 		// Create plugin instance
 		const plugin = sveltekitTranslationsImporterPlugin({
 			defaultPath: defaultTranslationsPath,
-			runtimePath: join(testDir, 'src', 'lib', 'translations', 'runtime', 'index.ts'),
 			verbose: true
 		});
 

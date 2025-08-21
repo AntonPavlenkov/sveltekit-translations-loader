@@ -82,7 +82,6 @@ import * as t from '@i18n';
 		// Create plugin instance (not used in this test but demonstrates plugin creation)
 		sveltekitTranslationsImporterPlugin({
 			defaultPath: defaultTranslationsPath,
-			runtimePath: join(testDir, 'src', 'lib', 'translations', 'runtime', 'index.ts'),
 			verbose: true
 		});
 

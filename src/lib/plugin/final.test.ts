@@ -71,8 +71,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 	describe('Plugin Configuration', () => {
 		it('should create plugin with correct name', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'src/types/default-translations.ts',
-				runtimePath: 'src/types/translations/messages/index.ts'
+				defaultPath: 'src/types/default-translations.ts'
 			});
 
 			expect(plugin.name).toBe('sveltekit-translations-loader');
@@ -80,8 +79,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 
 		it('should handle default configuration values', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 
 			expect(plugin.name).toBe('sveltekit-translations-loader');
@@ -89,8 +87,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 
 		it('should have all required plugin hooks', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 
 			expect(plugin.name).toBeDefined();
@@ -104,8 +101,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 	describe('Virtual Module System', () => {
 		it('should resolve @i18n to virtual module', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 			// @ts-expect-error - resolveId is not a function
 			const result = plugin.resolveId?.('@i18n');
@@ -114,8 +110,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 
 		it('should return null for other IDs', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 			// @ts-expect-error - resolveId is not a function
 			const result = plugin.resolveId?.('some-other-id');
@@ -124,8 +119,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 
 		it('should load virtual module content', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 			// @ts-expect-error - load is not a function
 			const result = plugin.load?.('\0@i18n');
@@ -135,8 +129,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 
 		it('should return null for other IDs in load', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 			// @ts-expect-error - load is not a function
 			const result = plugin.load?.('some-other-id');
@@ -148,7 +141,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should detect production build mode correctly', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				runtimePath: 'test/runtime',
 				verbose: true
 			});
 
@@ -167,7 +159,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should detect development build mode correctly', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				runtimePath: 'test/runtime',
 				verbose: true
 			});
 
@@ -186,7 +177,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should detect serve mode correctly', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				runtimePath: 'test/runtime',
 				verbose: true
 			});
 
@@ -205,7 +195,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should not log when verbose is false', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				runtimePath: 'test/runtime',
 				verbose: false
 			});
 
@@ -221,7 +210,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should support removeFunctionsOnBuild option', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				runtimePath: 'test/runtime',
 				removeFunctionsOnBuild: true
 			});
 
@@ -231,7 +219,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should support verbose option', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				runtimePath: 'test/runtime',
 				verbose: true
 			});
 
@@ -241,7 +228,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should handle all configuration options', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				runtimePath: 'test/runtime',
 				verbose: true,
 				removeFunctionsOnBuild: true
 			});
@@ -253,8 +239,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 	describe('Plugin Integration', () => {
 		it('should be compatible with Vite plugin system', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 
 			// Check that the plugin has the required Vite plugin structure
@@ -265,8 +250,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 
 		it('should support SvelteKit development workflow', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				runtimePath: 'test/runtime'
+				defaultPath: 'test/path'
 			});
 
 			// Check that the plugin supports SvelteKit-specific hooks

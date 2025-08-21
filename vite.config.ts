@@ -8,7 +8,6 @@ export default defineConfig({
 		tailwindcss(),
 		sveltekitTranslationsImporterPlugin({
 			defaultPath: 'src/types/default-translations.ts',
-			runtimePath: 'src/types/translations/messages/index.ts',
 			verbose: false, // Set to true to enable console logging
 			removeFunctionsOnBuild: true // Remove @i18n imports and use direct page.data access (only during build)
 		}),

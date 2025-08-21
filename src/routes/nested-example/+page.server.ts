@@ -7,7 +7,6 @@ const _translationKeys: string[] = [
 	'hello',
 	'hey',
 	'pageTitle',
-	'pageContent',
 	'nested-params',
 	'goodbye',
 	'welcome',
@@ -16,7 +15,5 @@ const _translationKeys: string[] = [
 // END AUTO-GENERATED CODE
 
 export const load = async () => {
-	return {
-		_loadedTranslations: _getTranslations(_translationKeys)
-	};
+	return { _loadedTranslations: _getTranslations(_translationKeys) };
 };
