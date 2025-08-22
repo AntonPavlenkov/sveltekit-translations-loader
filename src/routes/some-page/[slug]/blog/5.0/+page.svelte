@@ -3,6 +3,7 @@
 	import AliestTester from '@variants/AliestTester.svelte';
 
 	let isLoaded = $state(false);
+	console.log(t.welcome('Sababa'));
 </script>
 
 {#if isLoaded}

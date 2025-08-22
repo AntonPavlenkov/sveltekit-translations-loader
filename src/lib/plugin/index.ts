@@ -340,9 +340,10 @@ async function processTranslations(
 	// Initialize batch file writer with verbose setting and Console Ninja protection
 	getGlobalBatchWriter({
 		verbose,
-		maxRetries: consoleNinjaProtection ? 3 : 1,
+		maxRetries: consoleNinjaProtection ? 5 : 1, // Increased retries for persistent Console Ninja
 		retryDelay: consoleNinjaProtection ? 100 : 50,
-		consoleNinjaGuard: consoleNinjaProtection
+		consoleNinjaGuard: consoleNinjaProtection,
+		consoleNinjaRetryDelay: consoleNinjaProtection ? 500 : undefined // Longer delay for Console Ninja
 	});
 
 	// Load default translations first to check if they changed

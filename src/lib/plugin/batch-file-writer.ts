@@ -1,4 +1,4 @@
-import { writeFileSync } from 'fs';
+import { existsSync, renameSync, unlinkSync, writeFileSync } from 'fs';
 import { mkdir } from 'fs/promises';
 import { dirname } from 'path';
 import { hasConsoleNinjaCode, hasContentChanged, readFileContent } from './shared-utils.js';
@@ -19,6 +19,7 @@ interface BatchFileWriterConfig {
 	maxRetries?: number; // Maximum retry attempts for file writes
 	retryDelay?: number; // Delay between retries
 	consoleNinjaGuard?: boolean; // Enable Console Ninja detection guard
+	consoleNinjaRetryDelay?: number; // Delay when Console Ninja is detected (defaults to retryDelay * 2)
 }
 
 /**
@@ -37,7 +38,8 @@ export class BatchFileWriter {
 			flushDelay: config.flushDelay ?? 50,
 			maxRetries: config.maxRetries ?? 3,
 			retryDelay: config.retryDelay ?? 100,
-			consoleNinjaGuard: config.consoleNinjaGuard ?? true
+			consoleNinjaGuard: config.consoleNinjaGuard ?? true,
+			consoleNinjaRetryDelay: config.consoleNinjaRetryDelay ?? (config.retryDelay ?? 100) * 2
 		};
 	}
 
@@ -178,6 +180,38 @@ export class BatchFileWriter {
 	}
 
 	/**
+	 * Write file atomically using temporary file + rename to prevent Console Ninja interference
+	 */
+	private writeFileAtomically(
+		filePath: string,
+		content: string,
+		encoding: BufferEncoding = 'utf8'
+	): void {
+		// Create temporary file path with unique suffix
+		const timestamp = Date.now();
+		const tempPath = `${filePath}.tmp.${timestamp}.${process.pid}`;
+
+		try {
+			// Write to temporary file first
+			writeFileSync(tempPath, content, { encoding });
+
+			// Atomically rename temporary file to target file
+			// This operation is atomic on most file systems and prevents Console Ninja from interfering
+			renameSync(tempPath, filePath);
+		} catch (error) {
+			// Clean up temporary file on error
+			try {
+				if (existsSync(tempPath)) {
+					unlinkSync(tempPath);
+				}
+			} catch {
+				// Ignore cleanup errors
+			}
+			throw error;
+		}
+	}
+
+	/**
 	 * Write a single file with retry logic
 	 */
 	private async writeFileWithRetry(write: PendingFileWrite): Promise<void> {
@@ -190,13 +224,29 @@ export class BatchFileWriter {
 					const existingContent = readFileContent(write.path, false);
 					if (existingContent && hasConsoleNinjaCode(existingContent)) {
 						const relativePath = write.path.replace(process.cwd(), '.');
-						console.warn(
-							`⚠️  Console Ninja code detected in ${relativePath}. Skipping write to prevent corruption.`
-						);
-						console.warn(
-							`💡 Tip: Wait for Console Ninja to finish, then save your .svelte file again.`
-						);
-						return; // Skip writing to prevent corruption
+
+						// If this is not the final attempt, schedule a retry instead of giving up
+						if (attempt < maxAttempts) {
+							if (this.config.verbose) {
+								console.warn(
+									`⚠️  Console Ninja code detected in ${relativePath}. Scheduling retry... (attempt ${attempt}/${maxAttempts})`
+								);
+							}
+							// Wait longer for Console Ninja to finish
+							await new Promise((resolve) =>
+								setTimeout(resolve, this.config.consoleNinjaRetryDelay)
+							);
+							continue; // Retry the write
+						} else {
+							// Final attempt - warn and skip
+							console.warn(
+								`⚠️  Console Ninja code still detected in ${relativePath} after ${maxAttempts} attempts. Skipping write to prevent corruption.`
+							);
+							console.warn(
+								`💡 Tip: Wait for Console Ninja to finish, then save your .svelte file again.`
+							);
+							return; // Skip writing to prevent corruption
+						}
 					}
 				}
 
@@ -220,10 +270,47 @@ export class BatchFileWriter {
 					await new Promise((resolve) => setTimeout(resolve, delay));
 				}
 
-				// Write the file
-				writeFileSync(write.path, write.content, {
-					encoding: (write.options?.encoding as BufferEncoding) || 'utf8'
-				});
+				// CRITICAL: Check for Console Ninja code RIGHT BEFORE writing to catch last-moment injections
+				if (this.config.consoleNinjaGuard) {
+					const lastMinuteCheck = readFileContent(write.path, false);
+					if (lastMinuteCheck && hasConsoleNinjaCode(lastMinuteCheck)) {
+						const relativePath = write.path.replace(process.cwd(), '.');
+
+						if (attempt < maxAttempts) {
+							if (this.config.verbose) {
+								console.warn(
+									`⚠️  Console Ninja code detected at last minute in ${relativePath}. Scheduling retry... (attempt ${attempt}/${maxAttempts})`
+								);
+							}
+							// Wait longer for Console Ninja to finish
+							await new Promise((resolve) =>
+								setTimeout(resolve, this.config.consoleNinjaRetryDelay)
+							);
+							continue; // Retry the write
+						} else {
+							// Final attempt - warn and skip with better guidance
+							console.warn(
+								`⚠️  Console Ninja code still detected at last minute in ${relativePath} after ${maxAttempts} attempts. Skipping write to prevent corruption.`
+							);
+							console.warn(
+								`🔧 Console Ninja appears to be very active. Try one of these solutions:`
+							);
+							console.warn(`   1. Temporarily disable Console Ninja extension`);
+							console.warn(`   2. Wait 10-15 seconds, then save your .svelte file again`);
+							console.warn(
+								`   3. Set consoleNinjaProtection: false in plugin config (not recommended)`
+							);
+							return; // Skip writing to prevent corruption
+						}
+					}
+				}
+
+				// Write the file atomically to prevent Console Ninja interference
+				this.writeFileAtomically(
+					write.path,
+					write.content,
+					(write.options?.encoding as BufferEncoding) || 'utf8'
+				);
 
 				// Verify the write was successful by checking if content matches
 				await new Promise((resolve) => setTimeout(resolve, 20)); // Small delay for file system sync
