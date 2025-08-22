@@ -1,7 +1,7 @@
 import { basename, resolve } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
 import { loadDefaultTranslations } from './function-generator.js';
-import { extractParamsFromTranslation, sanitizeFunctionName } from './helpers.js';
+import { extractParamsFromTranslation, sanitizeFunctionName } from './helpers';
 
 // Constants
 const TYPE_DECLARATION_HEADER = [
