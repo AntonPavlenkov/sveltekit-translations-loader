@@ -1,4 +1,5 @@
 // Shared page data access
+
 import { page } from '$app/state';
 
 // Shared parameter replacement function
@@ -12,6 +13,13 @@ export const r = (str: string, params?: Record<string, string | number>): string
 	return result;
 };
 
+let cachedTranslations: Record<string, string> = {};
+
 export const getTData = () => {
-	return page.data._loadedTranslations || {};
+	cachedTranslations = { ...cachedTranslations, ...(page.data._loadedTranslations || {}) };
+	return cachedTranslations;
+};
+
+export const getValueFromData = (key: string) => {
+	return getTData()[key] || '';
 };

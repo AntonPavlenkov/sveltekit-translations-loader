@@ -1,1 +1,1 @@
-export { getTData, r } from './utils.js';
+export { getTData, getValueFromData, r } from './utils.js';

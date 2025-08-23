@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from 'fs/promises';
 import { join, resolve } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
-import { requiresSafeAccess, sanitizeFunctionName } from './helpers';
+import { requiresSafeAccess, sanitizeFunctionName } from './helpers.js';
 
 // Constants
 const PARAMETER_REGEX = /{{([^}]+)}}/g;

@@ -104,15 +104,13 @@ function generateParameterizedFunctionBody(entry: TranslationEntry): string {
 		// Single parameter: accept the value directly
 		const paramName = parameters[0];
 		return `export const ${safeFunctionName} = (${paramName}: string | number): string => {
-  const data = getTData();
-  const text = data['${key}'];
+  const text = getTData()['${key}'];
   return r(text, { ${paramName} });
 };`;
 	} else {
 		// Multiple parameters: use params object
 		return `export const ${safeFunctionName} = (params?: Record<string, string | number>): string => {
-  const data = getTData();
-  const text = data['${key}'];
+  const text = getTData()['${key}'];
   return r(text, params);
 };`;
 	}
@@ -125,8 +123,7 @@ function generateSimpleFunctionBody(entry: TranslationEntry): string {
 	const { safeFunctionName, key } = entry;
 
 	return `export const ${safeFunctionName} = (): string => {
-  const data = getTData();
-  return data['${key}'];
+  return getTData()['${key}'];
 };`;
 }
 
@@ -142,7 +139,7 @@ function generateFunctionFileContent(
 
 	let content = AUTO_GENERATED_HEADER;
 	content += generateImports(hasPlaceholders, helpersImport);
-	content += `/**\n * @description ${value}\n */\n`;
+	content += `/**\n * @description Text: ${value}\n */\n`;
 
 	if (hasPlaceholders) {
 		content += generateParameterizedFunctionBody(entry);
