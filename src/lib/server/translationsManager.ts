@@ -1,3 +1,5 @@
+import { getRequestEvent } from '$app/server';
+
 // Types
 interface TranslationData {
 	[key: string]: string;
@@ -20,6 +22,7 @@ interface TranslationsManagerConfig {
 	defaultTranslations: DefaultTranslationsInput;
 	getAvailableLocales: AvailableLocalesInput;
 	getTranslationsForLocale: TranslationsForLocaleInput;
+	useCookie: boolean;
 }
 
 // Constants
@@ -80,8 +83,11 @@ export class TranslationsManager {
 	private updateInterval: NodeJS.Timeout | null = null;
 	private supportedLocales: string[] = [];
 	private _defaultTranslations: TranslationData | null = null;
+	public useCookie: boolean;
 
-	constructor(private config: TranslationsManagerConfig) {}
+	constructor(private config: TranslationsManagerConfig) {
+		this.useCookie = config.useCookie || false;
+	}
 
 	/**
 	 * Start periodic updates for translations
@@ -153,6 +159,11 @@ export class TranslationsManager {
 	getLocales(): string[] {
 		return this.supportedLocales;
 	}
+
+	useRoute = () => {
+		const { locals } = getRequestEvent();
+		locals.translationsManager = this as unknown as typeof locals.translationsManager;
+	};
 
 	/**
 	 * Clean up resources

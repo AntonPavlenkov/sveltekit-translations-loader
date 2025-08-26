@@ -81,6 +81,7 @@ function detectDevelopmentMode(): boolean {
 	);
 }
 
+import { injectRouteKeysMap } from './route-keys-map-generator.js';
 import { createHash } from './shared-utils.js';
 
 /**
@@ -323,6 +324,7 @@ async function processRouteHierarchy(
 		}
 
 		injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose, isDevelopment);
+		injectRouteKeysMap(serverFile, resolvedKeys, routePath, defaultPath, verbose, isDevelopment);
 	}
 }
 

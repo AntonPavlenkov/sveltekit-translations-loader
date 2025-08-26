@@ -8,18 +8,18 @@ const translationsManager = new TranslationsManager({
 	getTranslationsForLocale
 });
 
-export const handle: Handle = async ({ event, resolve }) => {
+export const init = async () => {
 	await translationsManager.initialize();
-	event.locals.translationsManager = translationsManager;
-	console.log('🚀 ~ handle ~ translationsManager:', translationsManager);
+};
+
+export const handle: Handle = async ({ event, resolve }) => {
+	translationsManager.useRoute();
 
 	// Set locale from cookie, then headers, then default
 	const cookieLocale = event.cookies.get('locale');
 	const headerLocale = event.request.headers.get('accept-language')?.split(',')[0];
 	const finalLocale = cookieLocale || headerLocale || 'en-US';
 	event.locals.locale = finalLocale;
-
-	console.log('🌍 Setting locale:', { cookieLocale, headerLocale, finalLocale });
 
 	return resolve(event);
 };
