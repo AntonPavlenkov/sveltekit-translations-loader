@@ -384,9 +384,9 @@ export const load = async () => {
 	it('should remove _loadedTranslations from return statements when no keys', () => {
 		function removeLoadedTranslations(code: string): string {
 			return code
-				.replace(/,\s*_loadedTranslations:\s*_getTranslations\(_translationKeys\)/g, '')
-				.replace(/_loadedTranslations:\s*_getTranslations\(_translationKeys\)(,?\s*)/g, '')
-				.replace(/{\s*_loadedTranslations:\s*_getTranslations\(_translationKeys\)\s*}/g, '{}');
+				.replace(/,\s*_loadedTranslations:\s*_getTranslations\(_fileType\)/g, '')
+				.replace(/_loadedTranslations:\s*_getTranslations\(_fileType\)(,?\s*)/g, '')
+				.replace(/{\s*_loadedTranslations:\s*_getTranslations\(_fileType\)\s*}/g, '{}');
 		}
 
 		const codeWithLoadedTranslations = `export const load = async () => {
@@ -420,24 +420,27 @@ export const load = async () => {
 		expect(result3).not.toContain('_loadedTranslations');
 	});
 
-	// Test the key array generation for empty keys
-	it('should generate empty key array when no keys provided', () => {
-		function generateTranslationsCode(keysArray: string[], isDevelopment: boolean = false): string {
+	// Test the file type generation for empty keys
+	it('should generate file type when no keys provided', () => {
+		function generateTranslationsCode(
+			fileType: 'page' | 'layout',
+			isDevelopment: boolean = false
+		): string {
 			const importPath = isDevelopment ? '$lib/server' : 'sveltekit-translations-loader/server';
 
 			return `// =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '${importPath}';
-const _translationKeys: string[] = [${keysArray.map((key) => `'${key}'`).join(', ')}];
+const _fileType = '${fileType}';
 // END AUTO-GENERATED CODE
 `;
 		}
 
-		const emptyKeysResult = generateTranslationsCode([], true);
-		const nonEmptyKeysResult = generateTranslationsCode(['hello', 'world'], true);
+		const pageResult = generateTranslationsCode('page', true);
+		const layoutResult = generateTranslationsCode('layout', true);
 
-		expect(emptyKeysResult).toContain('const _translationKeys: string[] = [];');
-		expect(nonEmptyKeysResult).toContain("const _translationKeys: string[] = ['hello', 'world'];");
+		expect(pageResult).toContain("const _fileType = 'page';");
+		expect(layoutResult).toContain("const _fileType = 'layout';");
 	});
 
 	// Test the complete flow for empty keys scenario
