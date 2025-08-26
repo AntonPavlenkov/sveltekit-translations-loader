@@ -3,14 +3,7 @@ import type { PageServerLoad } from './$types';
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/server';
-const _translationKeys: string[] = [
-	'hello',
-	'welcome',
-	'user-count',
-	'pageContent',
-	'goodbye',
-	'continueFn'
-];
+const _fileType = 'page';
 // END AUTO-GENERATED CODE
 
 export const load: PageServerLoad = async () => {
@@ -18,6 +11,6 @@ export const load: PageServerLoad = async () => {
 	// with translation keys from all nested components
 	return {
 		// The plugin will inject translation keys here,
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };

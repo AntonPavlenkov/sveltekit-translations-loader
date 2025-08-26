@@ -58,7 +58,7 @@ export const load = async ({ locals }) => {
 	const data = await locals.api.getData();
 	return {
 		data,
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };`;
 		expect(hasConsoleNinjaCode(content)).toBe(false);

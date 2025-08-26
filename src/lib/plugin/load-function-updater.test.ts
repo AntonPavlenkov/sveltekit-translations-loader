@@ -183,7 +183,7 @@ export const load = async () => {
 		const codeWithLoadedTranslations = `export const load = async () => {
 	return {
 		hello: 'world',
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };`;
 
@@ -271,7 +271,7 @@ const _translationKeys: string[] = ['hello', 'world'];
 export const load = async () => {
 	return {
 		hello: 'world',
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };`;
 
@@ -392,19 +392,19 @@ export const load = async () => {
 		const codeWithLoadedTranslations = `export const load = async () => {
 	return {
 		hello: 'world',
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };`;
 
 		const codeWithLoadedTranslationsOnly = `export const load = async () => {
 	return {
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };`;
 
 		const codeWithLoadedTranslationsFirst = `export const load = async () => {
 	return {
-		_loadedTranslations: _getTranslations(_translationKeys),
+		_loadedTranslations: _getTranslations(_fileType),
 		hello: 'world'
 	};
 };`;
@@ -686,7 +686,7 @@ const _translationKeys: string[] = ['hello'];
 export const load = async () => {
 	return {
 		hello: 'world',
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };
 

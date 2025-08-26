@@ -60,7 +60,7 @@ const _translationKeys: string[] = [
 
 export const load = async () => {
 	return {
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };
 ```

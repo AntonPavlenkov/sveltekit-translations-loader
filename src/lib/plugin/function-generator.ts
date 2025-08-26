@@ -84,17 +84,6 @@ function getHelpersImportPath(development: boolean): string {
 }
 
 /**
- * Generate import statements for translation function
- */
-function generateImports(hasPlaceholders: boolean, helpersImport: string): string {
-	if (hasPlaceholders) {
-		return `import { r, getTData } from '${helpersImport}';\n\n`;
-	} else {
-		return `import { getTData } from '${helpersImport}';\n\n`;
-	}
-}
-
-/**
  * Generate function body for parameterized translation
  */
 function generateParameterizedFunctionBody(entry: TranslationEntry): string {
@@ -125,6 +114,17 @@ function generateSimpleFunctionBody(entry: TranslationEntry): string {
 	return `export const ${safeFunctionName} = (): string => {
   return getTData()['${key}'];
 };`;
+}
+
+/**
+ * Generate import statements for translation function
+ */
+function generateImports(hasPlaceholders: boolean, helpersImport: string): string {
+	if (hasPlaceholders) {
+		return `import { r, getTData } from '${helpersImport}';\n\n`;
+	} else {
+		return `import { getTData } from '${helpersImport}';\n\n`;
+	}
 }
 
 /**

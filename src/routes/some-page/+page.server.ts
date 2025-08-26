@@ -1,9 +1,9 @@
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/server';
-const _translationKeys: string[] = ['zap'];
+const _fileType = 'page';
 // END AUTO-GENERATED CODE
 
 export const load = async () => {
-	return { _loadedTranslations: _getTranslations(_translationKeys) };
+	return { _loadedTranslations: _getTranslations(_fileType) };
 };

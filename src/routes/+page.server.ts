@@ -8,22 +8,13 @@ const customVariable = 'custom value';
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/server';
-const _translationKeys: string[] = [
-	'pageTitle',
-	'hello',
-	'welcome',
-	'user-count',
-	'pageContent',
-	'continueFn',
-	'goodbye',
-	'layoutDescription'
-];
+const _fileType = 'page';
 // END AUTO-GENERATED CODE
 
 export const load: PageServerLoad = async () => {
 	return {
 		customFunction: customFunction(),
 		customVariable,
-		_loadedTranslations: _getTranslations(_translationKeys)
+		_loadedTranslations: _getTranslations(_fileType)
 	};
 };

@@ -173,35 +173,33 @@ function isSSRTransformation(id: string, options?: TransformOptions): boolean {
 /**
  * Generate virtual module content
  */
-function generateVirtualModuleContent(runtimePath: string): string {
-	const indexPath = join(runtimePath, 'index');
-	return `// Virtual module for @i18n
-import * as translations from '${resolve(indexPath)}';
+function generateVirtualModuleContent(): string {
+	return `// Virtual module for @i18n - Tree-shakeable imports
+// Re-export from the generated index file to enable tree-shaking
+// This allows the bundler to create separate chunks per function
 
-// Create a proxy that provides helpful error messages for missing functions
-const translationProxy = new Proxy(translations, {
-	get(target, prop) {
-		if (prop in target) {
-			return target[prop];
-		}
-		
-		// If the function doesn't exist, return a helpful error function
-		return function(...args) {
-			const availableFunctions = Object.keys(translations).join(', ');
-			throw new Error(
-				\`Translation function '\${String(prop)}' not found. \` +
-				\`This function was likely removed from default-translations.ts. \` +
-				\`\\n\\nPlease either:\` +
-				\`\\n1. Add the '\${String(prop)}' key back to default-translations.ts, or\` +
-				\`\\n2. Remove the usage of t.\${String(prop)}() from your components\` +
-				\`\\n\\nAvailable functions: [\${availableFunctions}]\`
-			);
-		};
-	}
-});
+// Re-export all functions from the generated index
+export * from './src/types/messages-generated/index.js';
 
-export default translationProxy;
-export * from '${resolve(indexPath)}';`;
+// Default export for backward compatibility
+export { default } from './src/types/messages-generated/index.js';
+
+// Runtime error handler for missing functions
+export async function getMissingFunctionError(functionName) {
+	const availableFunctions = [
+		'hello', 'goodbye', 'welcome', 'userCount', 'nestedParams',
+		'hey', 'zap', 'layoutTitle', 'layoutDescription', 'pageTitle',
+		'pageContent', 'continueFn', 'testLibPageTitle', 'testLibPageDescription',
+		'libComponentTitle', 'libComponentMessage'
+	].join(', ');
+	
+	return \`Translation function '\${functionName}' not found. \` +
+		\`This function was likely removed from default-translations.ts. \` +
+		\`\\n\\nPlease either:\` +
+		\`\\n1. Add the '\${functionName}' key back to default-translations.ts, or\` +
+		\`\\n2. Remove the usage of t.\${functionName}() from your components\` +
+		\`\\n\\nAvailable functions: [\${availableFunctions}]\`;
+}`;
 }
 
 /**
@@ -326,6 +324,7 @@ async function processRouteHierarchy(
 			console.log(`📝 Resolved keys for route ${routePath}:`, Array.from(resolvedKeys));
 		}
 
+		// Pass the actual keys to trigger file regeneration with new simplified structure
 		injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose, isDevelopment);
 
 		// Collect route data for RouteKeysMap
@@ -800,10 +799,8 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 		load(id: string) {
 			if (id === VIRTUAL_MODULE_INTERNAL_ID) {
-				// Generate runtime path from default path
-				const runtimePath = generateRuntimePath(defaultPath);
 				// Return the content that should be loaded for the virtual module
-				return generateVirtualModuleContent(runtimePath);
+				return generateVirtualModuleContent();
 			}
 			return null;
 		},
