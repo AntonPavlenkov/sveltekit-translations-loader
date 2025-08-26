@@ -3,7 +3,7 @@ import type { PageServerLoad } from './$types';
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
-const _functionId = '78yxfk9trgl';
+const _functionId = 'o2s60mnsekq';
 // END AUTO-GENERATED CODE
 
 export const load: PageServerLoad = async () => {

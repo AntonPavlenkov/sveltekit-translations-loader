@@ -298,9 +298,14 @@ async function processRouteHierarchy(
 		// Pass the actual keys to trigger file regeneration with new simplified structure
 		const functionId = injectTranslationKeys(serverFile, resolvedKeys, routePath, verbose);
 
-		// Collect route data for RouteKeysMap
+		// Collect route data for RouteKeysMap using the actual functionId from the load function
 		if (functionId) {
-			allRouteData.push({ serverFile, routePath, keys: resolvedKeys, functionId });
+			allRouteData.push({
+				serverFile,
+				routePath,
+				keys: resolvedKeys,
+				functionId // Use the functionId that was actually generated in the load function
+			});
 		}
 	}
 
