@@ -12,6 +12,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	const availableLocales = locals.translationsManager.getLocales();
 
 	return {
+		tabId: locals.translationsTabId,
 		locale: userLocale,
 		availableLocales,
 		_loadedTranslations: _getTranslations(_fileType)

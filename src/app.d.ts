@@ -11,6 +11,8 @@ declare global {
 			extraKeys?: Record<string, string>;
 			_translationsData?: Record<string, string>;
 			translationsManager: TranslationsManager;
+			translationsTabId: string;
+			translationsCookies: Record<string, boolean>;
 		}
 
 		// interface PageState {}

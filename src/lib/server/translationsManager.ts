@@ -1,4 +1,20 @@
 import { getRequestEvent } from '$app/server';
+import type { Cookies } from '@sveltejs/kit';
+
+const cookiesSettings = {
+	path: '/', // cookie available across the site
+	httpOnly: true, // not accessible via JS
+	secure: true, // only sent over HTTPS
+	sameSite: 'lax' as const, // CSRF protection
+	maxAge: 60 * 15 // 15 minutes in seconds
+} as const;
+
+export const getCookiesSettingsForTranslations = (domain: string) => {
+	return {
+		...cookiesSettings,
+		domain
+	};
+};
 
 // Types
 interface TranslationData {
@@ -161,8 +177,73 @@ export class TranslationsManager {
 	}
 
 	useRoute = () => {
-		const { locals } = getRequestEvent();
+		const { locals, cookies, url, request } = getRequestEvent();
+		const dest = request.headers.get('sec-fetch-dest');
+		const mode = request.headers.get('sec-fetch-mode');
+		const isDocumentNav = dest === 'document' && mode === 'navigate';
+
+		let currentTabId = cookies.get('_translations_active_tab_id');
+
+		if (isDocumentNav && currentTabId) {
+			cookies.delete('_translations_active_tab_id', { path: '/' });
+			cookies.delete('_translations_cookies_' + currentTabId, { path: '/' });
+		}
+
+		// Only generate new tab ID if none exists
+		if (!currentTabId || isDocumentNav) {
+			currentTabId = crypto.randomUUID();
+			// Set the tab ID cookie for future requests (override httpOnly to false for JS access)
+			cookies.set('_translations_active_tab_id', currentTabId, {
+				...getCookiesSettingsForTranslations(url.hostname),
+				httpOnly: false
+			});
+		}
+
+		// Get existing translations cookies for this tab
+		const translationsCookies = this.getCookiesWithData(currentTabId, cookies);
+		console.log('🚀 ~ TranslationsManager ~ translationsCookies:', translationsCookies);
+		locals.translationsCookies = translationsCookies;
+		locals.translationsTabId = currentTabId;
+
+		console.log('Tab ID:', currentTabId, 'Route:', url.pathname);
 		locals.translationsManager = this as unknown as typeof locals.translationsManager;
+	};
+
+	setCookiesWithData = (routeId: string) => {
+		const { locals, cookies, url } = getRequestEvent();
+		locals.translationsCookies[routeId] = true;
+		const cookieName = '_translations_cookies_' + locals.translationsTabId;
+		const ObjectToAppend = btoa(JSON.stringify(locals.translationsCookies)); //To base64
+		cookies.set(cookieName, ObjectToAppend, {
+			...getCookiesSettingsForTranslations(url.hostname),
+			maxAge: 60 * 60 * 24 * 7 // 7 days
+		});
+	};
+
+	private getCookiesWithData = (tabId: string | undefined, cookies: Cookies) => {
+		if (!tabId) return {};
+		const cookieName = '_translations_cookies_' + tabId;
+		const cookie = cookies.get(cookieName);
+		if (cookie) {
+			try {
+				const decoded = atob(cookie);
+				return JSON.parse(decoded);
+			} catch (error) {
+				console.warn('Failed to parse translations cookie:', error);
+				// Clean up corrupted cookie
+				cookies.delete(cookieName, { path: '/' });
+				return {};
+			}
+		}
+		return {};
+	};
+
+	/**
+	 * Validate if a string is a valid UUID
+	 */
+	private isValidUUID = (str: string): boolean => {
+		const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+		return uuidRegex.test(str);
 	};
 
 	/**

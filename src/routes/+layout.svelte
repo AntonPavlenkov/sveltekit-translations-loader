@@ -1,8 +1,17 @@
 <script lang="ts">
+	import { setClientCookieTabId, setupTabCleanup } from '$lib/helpers/utils';
 	import '../app.css';
 	import type { LayoutData } from './$types.js';
 
 	let { data }: { data: LayoutData } = $props();
+
+	// Setup tab cleanup on component mount
+	$effect(() => {
+		if (data.tabId) {
+			const cleanup = setupTabCleanup();
+			return cleanup;
+		}
+	});
 
 	// Language switching function
 	async function switchLanguage(locale: string) {
@@ -29,6 +38,8 @@
 		}
 	}
 </script>
+
+<svelte:window on:focus={setClientCookieTabId} />
 
 <svelte:head>
 	<title>Transhake Demo</title>
