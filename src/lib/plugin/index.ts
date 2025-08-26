@@ -314,6 +314,9 @@ async function processRouteHierarchy(
 	// Build route hierarchy to handle nested routes properly
 	const routeHierarchy = buildRouteHierarchy(pageUsages);
 
+	// Collect all route data for the RouteKeysMap
+	const allRouteData: Array<{ serverFile: string; routePath: string; keys: Set<string> }> = [];
+
 	// Inject translation keys into each page's server file with accumulated keys
 	for (const { serverFile, routePath } of pageUsages) {
 		const accumulatedKeys = routeHierarchy.get(routePath) || new Set();
@@ -324,8 +327,13 @@ async function processRouteHierarchy(
 		}
 
 		injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose, isDevelopment);
-		injectRouteKeysMap(serverFile, resolvedKeys, routePath, defaultPath, verbose, isDevelopment);
+
+		// Collect route data for RouteKeysMap
+		allRouteData.push({ serverFile, routePath, keys: resolvedKeys });
 	}
+
+	// Update RouteKeysMap with all collected route data
+	injectRouteKeysMap(allRouteData, defaultPath, verbose, isDevelopment);
 }
 
 /**

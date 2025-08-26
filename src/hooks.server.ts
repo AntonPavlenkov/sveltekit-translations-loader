@@ -5,7 +5,8 @@ import type { Handle } from '@sveltejs/kit';
 const translationsManager = new TranslationsManager({
 	defaultTranslations: import('./types/default-translations'),
 	getAvailableLocales: ['en-US', 'de-DE', 'es-ES', 'fr-FR'],
-	getTranslationsForLocale
+	getTranslationsForLocale,
+	useCookie: true
 });
 
 export const init = async () => {
