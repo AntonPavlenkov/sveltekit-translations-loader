@@ -27,29 +27,10 @@ function determineFileType(serverFilePath: string): 'page' | 'layout' {
 
 /**
  * Generate the route key format used in RouteKeysMap
- * Follows SvelteKit RouteId convention: https://svelte.dev/docs/kit/$app-types#RouteId
+ * Uses functionId for unique identification instead of route path and file type
  */
-function generateRouteKey(routePath: string, fileType: 'page' | 'layout'): string {
-	// Convert SvelteKit route path to proper RouteId format
-	let routeId = routePath;
-
-	// Handle root route
-	if (routePath === '+layout.svelte' || routePath === '+page.svelte') {
-		routeId = '/';
-	} else {
-		// Remove .svelte extension and convert to proper route format
-		routeId = routePath.replace(/\.svelte$/, '');
-
-		// Convert nested-example to /nested-example
-		if (!routeId.startsWith('/')) {
-			routeId = `/${routeId}`;
-		}
-
-		// Handle dynamic routes - convert [slug] to [slug] format
-		// This preserves the SvelteKit dynamic route syntax
-	}
-
-	return `{route:"${routeId}",type:"${fileType}"}`;
+function generateRouteKey(functionId: string): string {
+	return functionId;
 }
 
 /**
@@ -155,7 +136,12 @@ function updateRouteKeysMapFile(routeKeysMap: Map<string, string[]>, verbose: bo
  * Inject or update route keys in the RouteKeysMap
  */
 export function injectRouteKeysMap(
-	routeData: Array<{ serverFile: string; routePath: string; keys: Set<string> }>,
+	routeData: Array<{
+		serverFile: string;
+		routePath: string;
+		keys: Set<string>;
+		functionId: string;
+	}>,
 	defaultPath: string,
 	verbose: boolean = false,
 	isDevelopment: boolean = false
@@ -172,12 +158,12 @@ export function injectRouteKeysMap(
 	const existingMap = parseExistingRouteKeysMap(mapPath);
 
 	// Process all routes and build the complete map
-	for (const { serverFile, routePath, keys } of routeData) {
+	for (const { serverFile, routePath, keys, functionId } of routeData) {
 		// Determine file type
 		const fileType = determineFileType(serverFile);
 
-		// Generate route key
-		const routeKey = generateRouteKey(routePath, fileType);
+		// Generate route key using functionId
+		const routeKey = generateRouteKey(functionId);
 
 		// Convert usedKeys Set to array
 		const keysArray = Array.from(keys);

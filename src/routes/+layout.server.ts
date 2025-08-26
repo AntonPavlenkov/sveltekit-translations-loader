@@ -3,8 +3,7 @@ import type { LayoutServerLoad } from './$types.js';
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
-const _fileType = 'layout';
-const _functionId = 'y5hllh43gof';
+const _functionId = 'i32j8n9iah';
 // END AUTO-GENERATED CODE
 
 export const load: LayoutServerLoad = async ({ locals }) => {
@@ -16,6 +15,6 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		translationsTabId: locals.translationsTabId,
 		locale: userLocale,
 		availableLocales,
-		_loadedTranslations: _getTranslations(_fileType, _functionId)
+		_loadedTranslations: _getTranslations(_functionId)
 	};
 };

@@ -357,9 +357,7 @@ export async function updateAffectedServerFiles(
 	componentPath: string,
 	dependencyMap: DependencyMap,
 	routesDir: string,
-	defaultPath: string,
-	verbose = false,
-	isDevelopment = false
+	verbose = false
 ): Promise<void> {
 	const serverFiles = findAffectedServerFiles(componentPath, dependencyMap, routesDir, verbose);
 	const routesPath = resolve(routesDir);
@@ -379,7 +377,7 @@ export async function updateAffectedServerFiles(
 		}
 
 		// Update the server file (will create if it doesn't exist)
-		injectTranslationKeys(serverFile, usedKeys, routePath, defaultPath, verbose, isDevelopment);
+		injectTranslationKeys(serverFile, usedKeys, routePath, verbose);
 	}
 }
 
@@ -389,9 +387,7 @@ export async function updateAffectedServerFiles(
 export async function handleComponentChange(
 	changedFilePath: string,
 	routesDir: string,
-	defaultPath: string,
-	verbose = false,
-	isDevelopment = false
+	verbose = false
 ): Promise<void> {
 	const routesPath = resolve(routesDir);
 
@@ -438,14 +434,7 @@ export async function handleComponentChange(
 	// Only update if there's translation usage (direct or indirect)
 	if (hasDirectUsage || hasIndirectUsage) {
 		// Update affected server files
-		await updateAffectedServerFiles(
-			changedFilePath,
-			dependencyMap,
-			routesDir,
-			defaultPath,
-			verbose,
-			isDevelopment
-		);
+		await updateAffectedServerFiles(changedFilePath, dependencyMap, routesDir, verbose);
 	} else if (verbose) {
 		console.log(`⏭️  Skipping ${basename(changedFilePath)} - no translation usage detected`);
 	}

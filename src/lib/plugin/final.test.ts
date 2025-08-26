@@ -207,15 +207,6 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 	});
 
 	describe('Plugin Features', () => {
-		it('should support removeFunctionsOnBuild option', () => {
-			const plugin = sveltekitTranslationsImporterPlugin({
-				defaultPath: 'test/path',
-				removeFunctionsOnBuild: true
-			});
-
-			expect(plugin.name).toBe('sveltekit-translations-loader');
-		});
-
 		it('should support verbose option', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
@@ -228,8 +219,7 @@ describe('SvelteKit Translations Loader Plugin - Final Tests', () => {
 		it('should handle all configuration options', () => {
 			const plugin = sveltekitTranslationsImporterPlugin({
 				defaultPath: 'test/path',
-				verbose: true,
-				removeFunctionsOnBuild: true
+				verbose: true
 			});
 
 			expect(plugin.name).toBe('sveltekit-translations-loader');

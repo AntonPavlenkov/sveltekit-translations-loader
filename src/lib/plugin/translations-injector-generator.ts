@@ -26,19 +26,17 @@ function generateTranslationsInjectorContent(): string {
 import { getRequestEvent } from '$app/server';
 import RouteKeysMap from './route-keys-map.js';
 
-export function _getTranslations(type: 'page' | 'layout', functionId: string) {
-	const { locals, route } = getRequestEvent();
-	const routeId = route.id as string;
-
-	const routeKeys = RouteKeysMap.get(\`{route:"\${routeId}",type:"\${type}"}\`) || [];
-	const isSentAlready = locals.translationsCookies[routeId + '_' + functionId] || false;
+export function _getTranslations(functionId: string) {
+	const { locals } = getRequestEvent();
+	const routeKeys = RouteKeysMap.get(functionId) || [];
+	const isSentAlready = locals.translationsCookies[functionId] || false;
 
 	const allTranslations = locals.translationsManager.getTranslations(locals.locale);
 	let newTranslationsData = {
 		...(locals._translationsData || {}),
 		...(locals.extraKeys || {})
 	};
-	if (!isSentAlready && locals.translationsManager.useCookie) {
+	if (!isSentAlready && locals.translationsManager.useCookie || !locals.translationsManager.useCookie) {
 		newTranslationsData = {
 			...routeKeys.reduce(
 				(acc, key) => ({ ...acc, [key]: allTranslations[key] || \`(\${key} missing)\` }),
@@ -47,7 +45,7 @@ export function _getTranslations(type: 'page' | 'layout', functionId: string) {
 			...newTranslationsData
 		};
 		if (locals.translationsManager.useCookie)
-			locals.translationsManager.setCookiesWithData(routeId, functionId);
+			locals.translationsManager.setCookiesWithData(functionId);
 	}
 
 	return (locals._translationsData = newTranslationsData);

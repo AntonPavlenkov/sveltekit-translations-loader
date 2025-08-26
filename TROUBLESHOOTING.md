@@ -33,9 +33,7 @@ export default defineConfig({
 	plugins: [
 		sveltekitTranslationsImporterPlugin({
 			defaultPath: 'src/types/default-translations.ts',
-			runtimePath: 'src/types/translations/messages/index.ts',
-			verbose: true, // Enable for debugging
-			removeFunctionsOnBuild: true
+			verbose: true // Enable for debugging
 		}),
 		sveltekit()
 	]
@@ -83,9 +81,7 @@ export default defineConfig({
 ```typescript
 sveltekitTranslationsImporterPlugin({
 	defaultPath: 'src/types/default-translations.ts',
-	runtimePath: 'src/types/translations/messages/index.ts',
-	verbose: true, // This will show detailed logs
-	removeFunctionsOnBuild: true
+	verbose: true // This will show detailed logs
 });
 ```
 

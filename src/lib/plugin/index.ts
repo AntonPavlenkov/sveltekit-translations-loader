@@ -9,15 +9,13 @@ import { generateTranslations } from './function-generator.js';
 import { resolveTranslationKeys, transformTranslationCode } from './helpers.js';
 import { injectTranslationKeys } from './load-function-updater.js';
 import { buildRouteHierarchy, findPageTranslationUsage, setViteConfig } from './scanner.js';
-import { transformSvelteContent } from './svelte-transformer.js';
+
 import { generateTypeDeclarations } from './type-generator.js';
 // Constants
 const VIRTUAL_MODULE_ID = '@i18n';
 const VIRTUAL_MODULE_INTERNAL_ID = '\0@i18n';
 
 const I18N_IMPORT_PATTERNS = ["import * as t from '@i18n'", 'import * as t from "@i18n"'] as const;
-
-const SSR_INDICATORS = ['.svelte-kit/generated/server/', '?ssr'] as const;
 
 const ROUTES_DIR = 'src/routes';
 const HELPERS_UTILS_PATH = 'src/lib/helpers/utils.ts';
@@ -29,12 +27,6 @@ const DEBOUNCE_DELAY = 100; // 100ms debounce delay for better responsiveness
 export interface PluginConfig {
 	defaultPath: string;
 	verbose?: boolean;
-	/**
-	 * Remove @i18n imports during build and replace with direct page.data access for better performance.
-	 * Only affects client-side builds, server-side rendering uses original translation functions.
-	 * @default false
-	 */
-	removeFunctionsOnBuild?: boolean;
 	/**
 	 * Automatically add generated messages directory to .gitignore
 	 * @default true
@@ -65,10 +57,6 @@ interface BuildConfig {
 	resolve?: {
 		alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
 	};
-}
-
-interface TransformOptions {
-	ssr?: boolean;
 }
 
 /**
@@ -108,37 +96,47 @@ async function loadDefaultTranslations(defaultPath: string): Promise<Record<stri
  * Check if file should trigger reprocessing
  */
 function shouldReprocessFile(file: string, defaultPath: string): boolean {
-	// Skip generated, temporary, or system files to prevent loops
+	// Normalize path separators for cross-platform compatibility
+	const normalizedFile = file.replace(/\\/g, '/');
+
+	// Skip generated, temporary, system files, and node_modules to prevent loops
 	if (
-		file.includes('.svelte-kit/') ||
-		file.includes('node_modules/') ||
-		file.includes('.tmp') ||
-		file.includes('.bak') ||
-		file.includes('~') ||
-		file.includes('$types.ts') ||
-		file.includes('.d.ts')
+		normalizedFile.includes('.svelte-kit/') ||
+		normalizedFile.includes('node_modules/') ||
+		normalizedFile.includes('.tmp') ||
+		normalizedFile.includes('.bak') ||
+		normalizedFile.includes('~') ||
+		normalizedFile.includes('$types.ts') ||
+		normalizedFile.includes('.d.ts') ||
+		normalizedFile.includes('/.git/') ||
+		normalizedFile.includes('/.vscode/') ||
+		normalizedFile.includes('/.idea/') ||
+		normalizedFile.includes('/dist/') ||
+		normalizedFile.includes('/build/') ||
+		normalizedFile.includes('/coverage/') ||
+		normalizedFile.includes('/.nyc_output/')
 	) {
 		return false;
 	}
 
 	// Process translation files
-	if (file.includes(defaultPath)) {
+	if (normalizedFile.includes(defaultPath)) {
 		return true;
 	}
 
 	// For .svelte files in routes directory or any .svelte files that might be used by pages
 	// This will be done in the file watcher callback for better performance
-	if (file.endsWith('.svelte')) {
+	if (normalizedFile.endsWith('.svelte')) {
 		// Process .svelte files in routes directory
-		if (file.includes('src/routes/')) {
+		if (normalizedFile.includes('src/routes/')) {
 			return true;
 		}
 
 		// Also process .svelte files in shared component directories that might be used by pages
 		if (
-			file.includes('src/lib/') ||
-			file.includes('src/components/') ||
-			file.includes('src/variants/')
+			normalizedFile.includes('src/lib/') ||
+			normalizedFile.includes('src/components/') ||
+			normalizedFile.includes('src/variants/')
 		) {
 			return true;
 		}
@@ -158,17 +156,6 @@ function hasI18nUsage(code: string): boolean {
 	const hasLoadedTranslations = code.includes('_loadedTranslations');
 
 	return hasImports || hasLoadedTranslations;
-}
-
-/**
- * Check if transformation is for SSR
- */
-function isSSRTransformation(id: string, options?: TransformOptions): boolean {
-	return (
-		options?.ssr === true ||
-		SSR_INDICATORS.some((indicator) => id.includes(indicator)) ||
-		process.env.VITE_SSR === 'true'
-	);
 }
 
 /**
@@ -292,7 +279,12 @@ async function processRouteHierarchy(
 	const routeHierarchy = buildRouteHierarchy(pageUsages);
 
 	// Collect all route data for the RouteKeysMap
-	const allRouteData: Array<{ serverFile: string; routePath: string; keys: Set<string> }> = [];
+	const allRouteData: Array<{
+		serverFile: string;
+		routePath: string;
+		keys: Set<string>;
+		functionId: string;
+	}> = [];
 
 	// Inject translation keys into each page's server file with accumulated keys
 	for (const { serverFile, routePath } of pageUsages) {
@@ -304,10 +296,12 @@ async function processRouteHierarchy(
 		}
 
 		// Pass the actual keys to trigger file regeneration with new simplified structure
-		injectTranslationKeys(serverFile, resolvedKeys, routePath, defaultPath, verbose, isDevelopment);
+		const functionId = injectTranslationKeys(serverFile, resolvedKeys, routePath, verbose);
 
 		// Collect route data for RouteKeysMap
-		allRouteData.push({ serverFile, routePath, keys: resolvedKeys });
+		if (functionId) {
+			allRouteData.push({ serverFile, routePath, keys: resolvedKeys, functionId });
+		}
 	}
 
 	// Update RouteKeysMap with all collected route data
@@ -461,7 +455,7 @@ function setupFileWatcher(
 		// Add the routes directory and all its subdirectories recursively
 		server.watcher.add(routesDir);
 
-		// Recursively add all subdirectories
+		// Recursively add all subdirectories, excluding node_modules and other system dirs
 		function addSubdirectories(dir: string) {
 			try {
 				const entries = readdirSync(dir);
@@ -469,6 +463,22 @@ function setupFileWatcher(
 					const fullPath = join(dir, entry);
 					const stat = statSync(fullPath);
 					if (stat.isDirectory()) {
+						// Skip system directories and node_modules
+						if (
+							entry === 'node_modules' ||
+							entry === '.git' ||
+							entry === '.svelte-kit' ||
+							entry === 'dist' ||
+							entry === 'build' ||
+							entry === 'coverage' ||
+							entry === '.nyc_output' ||
+							entry === '.vscode' ||
+							entry === '.idea' ||
+							(entry.startsWith('.') && entry !== '.translations')
+						) {
+							continue;
+						}
+
 						server.watcher.add(fullPath);
 						addSubdirectories(fullPath);
 					}
@@ -498,7 +508,7 @@ function setupFileWatcher(
 					console.log(`👁️  Watching shared components directory: ${dir}`);
 				}
 
-				// Recursively add subdirectories
+				// Recursively add subdirectories, excluding node_modules and other system dirs
 				function addSharedSubdirectories(sharedDir: string) {
 					try {
 						const entries = readdirSync(sharedDir);
@@ -506,6 +516,22 @@ function setupFileWatcher(
 							const fullPath = join(sharedDir, entry);
 							const stat = statSync(fullPath);
 							if (stat.isDirectory()) {
+								// Skip system directories and node_modules
+								if (
+									entry === 'node_modules' ||
+									entry === '.git' ||
+									entry === '.svelte-kit' ||
+									entry === 'dist' ||
+									entry === 'build' ||
+									entry === 'coverage' ||
+									entry === '.nyc_output' ||
+									entry === '.vscode' ||
+									entry === '.idea' ||
+									(entry.startsWith('.') && entry !== '.translations')
+								) {
+									continue;
+								}
+
 								server.watcher.add(fullPath);
 								addSharedSubdirectories(fullPath);
 							}
@@ -549,7 +575,7 @@ function setupFileWatcher(
 
 					// Handle component change with dependency tracking
 					// The dependency tracker will check if this component or its users have translation usage
-					await handleComponentChange(file, ROUTES_DIR, defaultPath, verbose, state.isDevelopment);
+					await handleComponentChange(file, ROUTES_DIR, verbose);
 
 					// Also trigger normal reprocessing to ensure everything is up to date
 					if (verbose) {
@@ -600,7 +626,7 @@ function setupFileWatcher(
 
 				// Handle component change with dependency tracking for new files
 				// The dependency tracker will check if this component or its users have translation usage
-				await handleComponentChange(file, ROUTES_DIR, defaultPath, verbose, state.isDevelopment);
+				await handleComponentChange(file, ROUTES_DIR, verbose);
 
 				// Always trigger reprocessing for new .svelte files
 				if (verbose) {
@@ -629,7 +655,7 @@ function setupFileWatcher(
 
 			// Handle component change with dependency tracking for deleted files
 			// This will update server files that were using the deleted component
-			await handleComponentChange(file, ROUTES_DIR, defaultPath, verbose, state.isDevelopment);
+			await handleComponentChange(file, ROUTES_DIR, verbose);
 
 			// Force usage rescan when .svelte files are removed
 			debouncedProcessor(true);
@@ -638,83 +664,10 @@ function setupFileWatcher(
 }
 
 /**
- * Transform Svelte file content
- */
-function transformSvelteFile(
-	code: string,
-	id: string,
-	state: PluginState,
-	verbose: boolean
-): { code: string; map: null } | null {
-	// Check if the file contains @i18n imports
-	if (!hasI18nUsage(code)) {
-		return null;
-	}
-
-	if (verbose) {
-		console.log(`🔄 Transforming ${id.replace(process.cwd(), '.')} for client build only`);
-	}
-
-	try {
-		const transformedCode = transformSvelteContent(code, state.defaultTranslations, verbose);
-		return {
-			code: transformedCode,
-			map: null // Could add source map support here if needed
-		};
-	} catch (error) {
-		if (verbose) {
-			console.error(`❌ Error transforming ${id}:`, error);
-		}
-		// Return original code if transformation fails
-		return null;
-	}
-}
-
-/**
- * Handle transform hook for Svelte files
- */
-function handleTransform(
-	code: string,
-	id: string,
-	options: TransformOptions | undefined,
-	state: PluginState,
-	removeFunctionsOnBuild: boolean,
-	verbose: boolean
-): { code: string; map: null } | null {
-	// Only transform .svelte files when removeFunctionsOnBuild is enabled and we're in build mode
-	if (!removeFunctionsOnBuild || !state.isBuildMode || !id.endsWith('.svelte')) {
-		return null;
-	}
-
-	// Enhanced SSR detection - check multiple indicators
-	const isSSR = isSSRTransformation(id, options);
-
-	// Only transform for client builds, not SSR
-	if (isSSR) {
-		if (verbose) {
-			console.log(`⏭️  Skipping SSR transformation for ${id.replace(process.cwd(), '.')}`);
-		}
-		return null;
-	}
-
-	return transformSvelteFile(code, id, state, verbose);
-}
-
-/**
  * Main plugin function
  */
 export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
-	const {
-		defaultPath,
-		verbose = false,
-		removeFunctionsOnBuild = false,
-		autoGitignore = true
-	} = options;
-
-	// Log build optimization info
-	if (removeFunctionsOnBuild && verbose) {
-		console.log('🚀 removeFunctionsOnBuild enabled - optimizing client-side translations');
-	}
+	const { defaultPath, verbose = false, autoGitignore = true } = options;
 
 	// Initialize plugin state
 	const state: PluginState = {
@@ -789,8 +742,8 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 			return null;
 		},
 
-		transform(code: string, id: string, options?: TransformOptions) {
-			return handleTransform(code, id, options, state, removeFunctionsOnBuild, verbose);
+		transform() {
+			return null;
 		},
 
 		async closeBundle() {

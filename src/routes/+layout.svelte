@@ -5,6 +5,8 @@
 
 	let { data }: { data: LayoutData } = $props();
 
+	$inspect(data);
+
 	// Language switching function
 	async function switchLanguage(locale: string) {
 		console.log('🔄 Switching to loc ale:', locale);

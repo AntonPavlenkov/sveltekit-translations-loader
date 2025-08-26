@@ -3,8 +3,7 @@ import type { PageServerLoad } from './$types';
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
-const _fileType = 'page';
-const _functionId = 'doc4vopijro';
+const _functionId = '78yxfk9trgl';
 // END AUTO-GENERATED CODE
 
 export const load: PageServerLoad = async () => {
@@ -12,6 +11,6 @@ export const load: PageServerLoad = async () => {
 	// with translation keys from all nested components
 	return {
 		// The plugin will inject translation keys here,
-		_loadedTranslations: _getTranslations(_fileType, _functionId)
+		_loadedTranslations: _getTranslations(_functionId)
 	};
 };

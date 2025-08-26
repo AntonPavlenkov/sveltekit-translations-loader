@@ -81,8 +81,7 @@ export default defineConfig({
 	plugins: [
 		sveltekitTranslationsImporterPlugin({
 			defaultPath: 'src/types/default-translations.ts',
-			verbose: false, // Set to true for detailed logging
-			removeFunctionsOnBuild: true // Enable production optimization
+			verbose: false // Set to true for detailed logging
 		}), //---------------> IMPORTANT to be before sveltekit()
 		sveltekit()
 	]
@@ -150,13 +149,6 @@ interface PluginConfig {
 
 	/** Enable detailed logging during build */
 	verbose?: boolean;
-
-	/**
-	 * Enable production build optimization
-	 * Removes @i18n imports and uses direct page.data access
-	 * Only active during 'npm run build'
-	 */
-	removeFunctionsOnBuild?: boolean;
 
 	/**
 	 * Automatically add generated messages directory to .gitignore
@@ -248,8 +240,6 @@ interface TranslationsManagerConfig {
 - Type safety and IntelliSense
 
 ### Production Mode (`npm run build`)
-
-When `removeFunctionsOnBuild: true` is enabled, the build process automatically transforms your components:
 
 ```svelte
 <script lang="ts">
@@ -503,7 +493,6 @@ npm run check
 
 ### Latest Features & Optimizations
 
-- ✨ **Build-Time Optimization**: New `removeFunctionsOnBuild` option for production performance
 - 🔧 **Automatic Import Management**: Smart import handling for development vs production
 - 📦 **Bundle Size Optimization**: Significant reduction in JavaScript bundle size
 - 🎯 **Direct Data Access**: Zero-overhead translation access in production

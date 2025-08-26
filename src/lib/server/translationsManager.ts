@@ -209,9 +209,9 @@ export class TranslationsManager {
 		locals.translationsManager = this as unknown as typeof locals.translationsManager;
 	};
 
-	setCookiesWithData = (routeId: string, functionId: string) => {
+	setCookiesWithData = (functionId: string) => {
 		const { locals, cookies, url } = getRequestEvent();
-		locals.translationsCookies[routeId + '_' + functionId] = true;
+		locals.translationsCookies[functionId] = true;
 		const cookieName = '_translations_cookies_' + locals.translationsTabId;
 		const ObjectToAppend = btoa(JSON.stringify(locals.translationsCookies)); //To base64
 		cookies.set(cookieName, ObjectToAppend, {
