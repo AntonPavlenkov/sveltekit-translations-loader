@@ -1,7 +1,7 @@
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
 import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
-const _functionId = 'lstr8kh9y5m';
+const _functionId = 'rc5rgtlojh';
 // END AUTO-GENERATED CODE
 
 export const load = async () => {
