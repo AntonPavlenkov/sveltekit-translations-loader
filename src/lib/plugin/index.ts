@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
-import { basename, dirname, join, resolve } from 'path';
+import { basename, join, resolve } from 'path';
 import type { Plugin } from 'vite';
 
 // Import from separated modules
@@ -83,6 +83,7 @@ function detectDevelopmentMode(): boolean {
 
 import { injectRouteKeysMap } from './route-keys-map-generator.js';
 import { createHash } from './shared-utils.js';
+import { injectTranslationsInjector } from './translations-injector-generator.js';
 
 /**
  * Load default translations from the specified path
@@ -181,11 +182,11 @@ export * from '${resolve(indexPath)}';`;
 }
 
 /**
- * Generate runtime path from default path
+ * Generate runtime path - always use .translations directory
  */
-function generateRuntimePath(defaultPath: string): string {
-	const defaultDir = dirname(defaultPath);
-	return join(defaultDir, 'messages-generated');
+function generateRuntimePath(): string {
+	// Always generate in .translations directory regardless of defaultPath location
+	return join('src', 'lib', '.translations', '_generated', 'messages');
 }
 
 /**
@@ -242,13 +243,13 @@ function addToGitignore(messagesPath: string, verbose: boolean): void {
 			return (
 				trimmedLine === entryToAdd ||
 				trimmedLine === messagesPath.replace(/\\/g, '/') ||
-				trimmedLine.includes('messages-generated')
+				trimmedLine.includes('_generated')
 			);
 		});
 
 		if (entryExists) {
 			if (verbose) {
-				console.log('✅ .gitignore already contains messages-generated entry');
+				console.log('✅ .gitignore already contains _generated entry');
 			}
 			return;
 		}
@@ -311,6 +312,9 @@ async function processRouteHierarchy(
 
 	// Update RouteKeysMap with all collected route data
 	injectRouteKeysMap(allRouteData, defaultPath, verbose, isDevelopment);
+
+	// Update translations injector
+	injectTranslationsInjector(verbose);
 }
 
 /**
@@ -366,8 +370,8 @@ async function processTranslations(
 
 	// Only regenerate translation functions and types if translations changed
 	if (translationsChanged) {
-		// Generate runtime path from default path
-		const runtimePath = generateRuntimePath(defaultPath);
+		// Generate runtime path - always use .translations directory
+		const runtimePath = generateRuntimePath();
 
 		// Generate base translation functions
 		await generateTranslations(defaultPath, runtimePath, verbose, state.isDevelopment);
@@ -777,8 +781,8 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 		load(id: string) {
 			if (id === VIRTUAL_MODULE_INTERNAL_ID) {
-				// Generate runtime path from default path
-				const runtimePath = generateRuntimePath(defaultPath);
+				// Generate runtime path - always use .translations directory
+				const runtimePath = generateRuntimePath();
 				// Return the content that should be loaded for the virtual module
 				return generateVirtualModuleContent(runtimePath);
 			}

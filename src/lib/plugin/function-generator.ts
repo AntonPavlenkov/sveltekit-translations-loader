@@ -188,7 +188,7 @@ function generateIndexFileContent(entries: TranslationEntry[]): string {
 }
 
 /**
- * Clean up the entire messages-generated directory and recreate it
+ * Clean up the entire messages directory and recreate it
  */
 async function cleanupAndRecreateDirectory(
 	runtimeDir: string,

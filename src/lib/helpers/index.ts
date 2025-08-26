@@ -1,1 +1,1 @@
-export { getTData, getValueFromData, r } from './utils.js';
+export { getTData, getValueFromData, r, setClientCookieTabId } from './utils.js';

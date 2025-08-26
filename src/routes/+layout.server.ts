@@ -2,9 +2,9 @@ import type { LayoutServerLoad } from './$types.js';
 
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
-import { _getTranslations } from '$lib/server';
+import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
 const _fileType = 'layout';
-const _functionId = 'u9emhty72';
+const _functionId = 'y5hllh43gof';
 // END AUTO-GENERATED CODE
 
 export const load: LayoutServerLoad = async ({ locals }) => {

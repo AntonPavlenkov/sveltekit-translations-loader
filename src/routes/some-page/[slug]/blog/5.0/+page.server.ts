@@ -1,8 +1,8 @@
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
-import { _getTranslations } from '$lib/server';
+import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
 const _fileType = 'page';
-const _functionId = '8gmjbfjtfl4';
+const _functionId = 'mbvz8yx2pp';
 // END AUTO-GENERATED CODE
 
 export const load = async () => {

@@ -4,8 +4,8 @@ import { queueFileWrite } from './batch-file-writer.js';
 import { hasContentChanged } from './shared-utils.js';
 
 // Constants
-const getRouteKeysMapPath = (isDevelopment: boolean): string => {
-	const basePath = isDevelopment ? 'src/lib/server' : 'sveltekit-translations-loader/server';
+const getRouteKeysMapPath = (): string => {
+	const basePath = 'src/lib/.translations/_generated/server';
 	return `${basePath}/route-keys-map.ts`;
 };
 
@@ -119,18 +119,14 @@ export default RouteKeysMap;
 /**
  * Update the RouteKeysMap file
  */
-function updateRouteKeysMapFile(
-	routeKeysMap: Map<string, string[]>,
-	verbose: boolean,
-	isDevelopment: boolean
-): void {
-	const mapPath = resolve(getRouteKeysMapPath(isDevelopment));
+function updateRouteKeysMapFile(routeKeysMap: Map<string, string[]>, verbose: boolean): void {
+	const mapPath = resolve(getRouteKeysMapPath());
 	const newContent = generateRouteKeysMapContent(routeKeysMap);
 
 	// Check if content has actually changed before writing
 	if (!hasContentChanged(mapPath, newContent)) {
 		if (verbose) {
-			console.log(`⏭️  Skipping ${getRouteKeysMapPath(isDevelopment)} - no changes detected`);
+			console.log(`⏭️  Skipping ${getRouteKeysMapPath()} - no changes detected`);
 		}
 		return;
 	}
@@ -151,9 +147,7 @@ function updateRouteKeysMapFile(
 	queueFileWrite(mapPath, newContent, { encoding: 'utf8' });
 
 	if (verbose) {
-		console.log(
-			`✅ Updated ${getRouteKeysMapPath(isDevelopment)} with ${routeKeysMap.size} route entries`
-		);
+		console.log(`✅ Updated ${getRouteKeysMapPath()} with ${routeKeysMap.size} route entries`);
 	}
 }
 
@@ -169,10 +163,10 @@ export function injectRouteKeysMap(
 	if (verbose) {
 		console.log(`🔧 injectRouteKeysMap called for ${routeData.length} routes`);
 		console.log(`🔧 Development mode: ${isDevelopment}`);
-		console.log(`🔧 RouteKeysMap path: ${getRouteKeysMapPath(isDevelopment)}`);
+		console.log(`🔧 RouteKeysMap path: ${getRouteKeysMapPath()}`);
 	}
 
-	const mapPath = resolve(getRouteKeysMapPath(isDevelopment));
+	const mapPath = resolve(getRouteKeysMapPath());
 
 	// Parse existing RouteKeysMap from the file
 	const existingMap = parseExistingRouteKeysMap(mapPath);
@@ -227,5 +221,5 @@ export function injectRouteKeysMap(
 	}
 
 	// Update the file with all collected route data
-	updateRouteKeysMapFile(existingMap, verbose, isDevelopment);
+	updateRouteKeysMapFile(existingMap, verbose);
 }

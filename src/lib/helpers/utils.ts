@@ -28,21 +28,6 @@ export const setClientCookieTabId = () => {
 	const cookieName = '_translations_active_tab_id';
 	const tabId = page.data.translationsTabId;
 	if (tabId) {
-		document.cookie = `${cookieName}=${tabId}; path=/; max-age=${60 * 60 * 24 * 7}`; // 7 days
+		document.cookie = `${cookieName}=${tabId}; path=/; max-age=${60 * 15}`; // 15 minutes
 	}
-};
-
-// Clean up tab cookies when tab is closed
-export const setupTabCleanup = () => {
-	const handleBeforeUnload = () => {
-		// Note: This won't work reliably due to browser limitations
-		// The server-side cleanup with cookie expiration is more reliable
-	};
-
-	window.addEventListener('beforeunload', handleBeforeUnload);
-
-	// Cleanup function
-	return () => {
-		window.removeEventListener('beforeunload', handleBeforeUnload);
-	};
 };

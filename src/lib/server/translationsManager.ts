@@ -177,11 +177,10 @@ export class TranslationsManager {
 	}
 
 	useRoute = () => {
-		const { locals, cookies, url, request, route } = getRequestEvent();
+		const { locals, cookies, url, request } = getRequestEvent();
 		const dest = request.headers.get('sec-fetch-dest');
 		const mode = request.headers.get('sec-fetch-mode');
 		const isDocumentNav = dest === 'document' && mode === 'navigate';
-		console.log('🚀 ~ TranslationsManager ~ isDocumentNav:', isDocumentNav, route.id);
 
 		let currentTabId = cookies.get('_translations_active_tab_id');
 
@@ -217,7 +216,7 @@ export class TranslationsManager {
 		const ObjectToAppend = btoa(JSON.stringify(locals.translationsCookies)); //To base64
 		cookies.set(cookieName, ObjectToAppend, {
 			...getCookiesSettingsForTranslations(url.hostname),
-			maxAge: 60 * 60 * 24 * 7 // 7 days
+			maxAge: 60 * 15 // 15 minutes
 		});
 	};
 

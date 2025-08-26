@@ -7,9 +7,9 @@ const customVariable = 'custom value';
 
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
-import { _getTranslations } from '$lib/server';
+import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
 const _fileType = 'page';
-const _functionId = 'c1rytr54k2g';
+const _functionId = 'ivtifb2934';
 // END AUTO-GENERATED CODE
 
 export const load: PageServerLoad = async () => {

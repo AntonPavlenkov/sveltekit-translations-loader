@@ -119,7 +119,9 @@ function generateTranslationsCode(
 	fileType: 'page' | 'layout',
 	isDevelopment: boolean = false
 ): string {
-	const importPath = isDevelopment ? '$lib/server' : 'sveltekit-translations-loader/server';
+	const importPath = isDevelopment
+		? '$lib/.translations/_generated/server/translations-injector'
+		: '$lib/.translations/_generated/server/translations-injector';
 	const functionId = Math.random().toString(36).substring(2, 15);
 
 	return `${AUTO_GENERATED_MARKERS.START}

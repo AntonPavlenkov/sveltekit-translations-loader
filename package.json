@@ -1,6 +1,6 @@
 {
 	"name": "sveltekit-translations-loader",
-	"version": "0.0.30",
+	"version": "0.0.35",
 	"description": "A powerful translation system for SvelteKit with automatic type generation and runtime injection",
 	"author": "Anton Pavlenkov",
 	"license": "MIT",
@@ -41,10 +41,6 @@
 	"types": "./dist/index.d.ts",
 	"type": "module",
 	"exports": {
-		".": {
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		},
 		"./plugin": {
 			"types": "./dist/plugin/index.d.ts",
 			"import": "./dist/plugin/index.js"
