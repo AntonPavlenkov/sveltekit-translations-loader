@@ -173,17 +173,11 @@ function isSSRTransformation(id: string, options?: TransformOptions): boolean {
 /**
  * Generate virtual module content
  */
-function generateVirtualModuleContent(generatedPath: string): string {
-	return `// Virtual module for @i18n - Tree-shakeable imports
-// Re-export from the generated index file to enable tree-shaking
-// This allows the bundler to create separate chunks per function
-
-// Re-export all functions from the generated index
-export * from '${generatedPath}';
-
-// Default export for backward compatibility
-export { default } from '${generatedPath}';
-`;
+function generateVirtualModuleContent(runtimePath: string): string {
+	const indexPath = join(runtimePath, 'index');
+	return `// Virtual module for @i18n
+import * as translations from '${resolve(indexPath)}';
+export * from '${resolve(indexPath)}';`;
 }
 
 /**
@@ -783,12 +777,10 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 		load(id: string) {
 			if (id === VIRTUAL_MODULE_INTERNAL_ID) {
-				// Generate the path to the generated messages index file
-				// Use the same logic as function-generator.ts: defaultPath -> messages-generated/index.js
-				const defaultDir = dirname(defaultPath);
-				const generatedPath = './' + join(defaultDir, 'messages-generated', 'index.js');
+				// Generate runtime path from default path
+				const runtimePath = generateRuntimePath(defaultPath);
 				// Return the content that should be loaded for the virtual module
-				return generateVirtualModuleContent(generatedPath);
+				return generateVirtualModuleContent(runtimePath);
 			}
 			return null;
 		},
