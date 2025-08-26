@@ -120,11 +120,13 @@ function generateTranslationsCode(
 	isDevelopment: boolean = false
 ): string {
 	const importPath = isDevelopment ? '$lib/server' : 'sveltekit-translations-loader/server';
+	const functionId = Math.random().toString(36).substring(2, 15);
 
 	return `${AUTO_GENERATED_MARKERS.START}
 ${AUTO_GENERATED_MARKERS.HEADER}
 import { _getTranslations } from '${importPath}';
 const _fileType = '${fileType}';
+const _functionId = '${functionId}';
 ${AUTO_GENERATED_MARKERS.END}
 `;
 }
@@ -135,8 +137,8 @@ ${AUTO_GENERATED_MARKERS.END}
 function createLoadFunction(config: LoadFunctionConfig): string {
 	const { existingReturnContent } = config;
 	const returnContent = existingReturnContent
-		? `${existingReturnContent},\n\t\t_loadedTranslations: _getTranslations(_fileType)`
-		: `_loadedTranslations: _getTranslations(_fileType)`;
+		? `${existingReturnContent},\n\t\t_loadedTranslations: _getTranslations(_fileType, _functionId)`
+		: `_loadedTranslations: _getTranslations(_fileType, _functionId)`;
 
 	return `export const load = async () => {
 	return {
@@ -246,7 +248,7 @@ export function modifyLoadFunction(loadFunctionCode: string): string {
 		// Replace any existing _loadedTranslations calls with the new _fileType parameter
 		return loadFunctionCode.replace(
 			/_loadedTranslations:\s*_getTranslations\([^)]*\)/g,
-			'_loadedTranslations: _getTranslations(_fileType)'
+			'_loadedTranslations: _getTranslations(_fileType, _functionId)'
 		);
 	}
 
@@ -256,7 +258,7 @@ export function modifyLoadFunction(loadFunctionCode: string): string {
 
 	return `${functionSignature}
 	return {
-		${existingContent ? `${existingContent},\n\t\t` : ''}_loadedTranslations: _getTranslations(_fileType)
+		${existingContent ? `${existingContent},\n\t\t` : ''}_loadedTranslations: _getTranslations(_fileType, _functionId)
 	};
 }`;
 }
@@ -290,13 +292,13 @@ function injectLoadedTranslations(loadFunctionCode: string): {
 		// First, remove all duplicate _loadedTranslations lines, keeping only one
 		let processedCode = loadFunctionCode.replace(
 			/(_loadedTranslations:\s*_getTranslations\([^)]*\)\s*,?\s*\n\s*)+/g,
-			'_loadedTranslations: _getTranslations(_fileType),\n\t\t'
+			'_loadedTranslations: _getTranslations(_fileType, _functionId),\n\t\t'
 		);
 
 		// Then replace any remaining _loadedTranslations calls with the new _fileType parameter
 		processedCode = processedCode.replace(
 			/_loadedTranslations:\s*_getTranslations\([^)]*\)/g,
-			'_loadedTranslations: _getTranslations(_fileType)'
+			'_loadedTranslations: _getTranslations(_fileType, _functionId)'
 		);
 
 		// Clean up any trailing commas
@@ -372,7 +374,7 @@ function injectLoadedTranslations(loadFunctionCode: string): {
 				modifiedLines.push(
 					line.replace(
 						/return\s*\{\s*\}/,
-						'return { _loadedTranslations: _getTranslations(_fileType) }'
+						'return { _loadedTranslations: _getTranslations(_fileType, _functionId) }'
 					)
 				);
 				inReturnBlock = false;
@@ -435,7 +437,7 @@ function injectLoadedTranslations(loadFunctionCode: string): {
 							lastPropertyOriginalLine +
 								'\n' +
 								indentation +
-								'_loadedTranslations: _getTranslations(_fileType)'
+								'_loadedTranslations: _getTranslations(_fileType, _functionId)'
 						);
 						modifiedLines.push(modifiedReturnStatement);
 					} else {
@@ -445,7 +447,7 @@ function injectLoadedTranslations(loadFunctionCode: string): {
 							lastPropertyOriginalLine +
 								',\n' +
 								indentation +
-								'_loadedTranslations: _getTranslations(_fileType)'
+								'_loadedTranslations: _getTranslations(_fileType, _functionId)'
 						);
 						modifiedLines.push(modifiedReturnStatement);
 					}
@@ -453,7 +455,7 @@ function injectLoadedTranslations(loadFunctionCode: string): {
 					// No properties found, just add _loadedTranslations
 					const modifiedReturnStatement = returnStatement.replace(
 						/\{\s*\}/,
-						'{ _loadedTranslations: _getTranslations(_fileType) }'
+						'{ _loadedTranslations: _getTranslations(_fileType, _functionId) }'
 					);
 					modifiedLines.push(modifiedReturnStatement);
 				}

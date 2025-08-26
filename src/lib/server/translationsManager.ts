@@ -177,10 +177,11 @@ export class TranslationsManager {
 	}
 
 	useRoute = () => {
-		const { locals, cookies, url, request } = getRequestEvent();
+		const { locals, cookies, url, request, route } = getRequestEvent();
 		const dest = request.headers.get('sec-fetch-dest');
 		const mode = request.headers.get('sec-fetch-mode');
 		const isDocumentNav = dest === 'document' && mode === 'navigate';
+		console.log('🚀 ~ TranslationsManager ~ isDocumentNav:', isDocumentNav, route.id);
 
 		let currentTabId = cookies.get('_translations_active_tab_id');
 
@@ -201,7 +202,7 @@ export class TranslationsManager {
 
 		// Get existing translations cookies for this tab
 		const translationsCookies = this.getCookiesWithData(currentTabId, cookies);
-		console.log('🚀 ~ TranslationsManager ~ translationsCookies:', translationsCookies);
+
 		locals.translationsCookies = translationsCookies;
 		locals.translationsTabId = currentTabId;
 
@@ -209,9 +210,9 @@ export class TranslationsManager {
 		locals.translationsManager = this as unknown as typeof locals.translationsManager;
 	};
 
-	setCookiesWithData = (routeId: string) => {
+	setCookiesWithData = (routeId: string, functionId: string) => {
 		const { locals, cookies, url } = getRequestEvent();
-		locals.translationsCookies[routeId] = true;
+		locals.translationsCookies[routeId + '_' + functionId] = true;
 		const cookieName = '_translations_cookies_' + locals.translationsTabId;
 		const ObjectToAppend = btoa(JSON.stringify(locals.translationsCookies)); //To base64
 		cookies.set(cookieName, ObjectToAppend, {

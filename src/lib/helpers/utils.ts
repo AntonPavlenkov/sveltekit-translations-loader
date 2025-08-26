@@ -26,7 +26,7 @@ export const getValueFromData = (key: string) => {
 
 export const setClientCookieTabId = () => {
 	const cookieName = '_translations_active_tab_id';
-	const tabId = page.data.tabId;
+	const tabId = page.data.translationsTabId;
 	if (tabId) {
 		document.cookie = `${cookieName}=${tabId}; path=/; max-age=${60 * 60 * 24 * 7}`; // 7 days
 	}
