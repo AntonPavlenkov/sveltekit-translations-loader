@@ -173,33 +173,17 @@ function isSSRTransformation(id: string, options?: TransformOptions): boolean {
 /**
  * Generate virtual module content
  */
-function generateVirtualModuleContent(): string {
+function generateVirtualModuleContent(generatedPath: string): string {
 	return `// Virtual module for @i18n - Tree-shakeable imports
 // Re-export from the generated index file to enable tree-shaking
 // This allows the bundler to create separate chunks per function
 
 // Re-export all functions from the generated index
-export * from './src/types/messages-generated/index.js';
+export * from '${generatedPath}';
 
 // Default export for backward compatibility
-export { default } from './src/types/messages-generated/index.js';
-
-// Runtime error handler for missing functions
-export async function getMissingFunctionError(functionName) {
-	const availableFunctions = [
-		'hello', 'goodbye', 'welcome', 'userCount', 'nestedParams',
-		'hey', 'zap', 'layoutTitle', 'layoutDescription', 'pageTitle',
-		'pageContent', 'continueFn', 'testLibPageTitle', 'testLibPageDescription',
-		'libComponentTitle', 'libComponentMessage'
-	].join(', ');
-	
-	return \`Translation function '\${functionName}' not found. \` +
-		\`This function was likely removed from default-translations.ts. \` +
-		\`\\n\\nPlease either:\` +
-		\`\\n1. Add the '\${functionName}' key back to default-translations.ts, or\` +
-		\`\\n2. Remove the usage of t.\${functionName}() from your components\` +
-		\`\\n\\nAvailable functions: [\${availableFunctions}]\`;
-}`;
+export { default } from '${generatedPath}';
+`;
 }
 
 /**
@@ -799,8 +783,12 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 		load(id: string) {
 			if (id === VIRTUAL_MODULE_INTERNAL_ID) {
+				// Generate the path to the generated messages index file
+				// Use the same logic as function-generator.ts: defaultPath -> messages-generated/index.js
+				const defaultDir = dirname(defaultPath);
+				const generatedPath = './' + join(defaultDir, 'messages-generated', 'index.js');
 				// Return the content that should be loaded for the virtual module
-				return generateVirtualModuleContent();
+				return generateVirtualModuleContent(generatedPath);
 			}
 			return null;
 		},
