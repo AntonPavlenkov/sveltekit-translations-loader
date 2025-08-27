@@ -529,9 +529,10 @@ export function injectTranslationKeys(
 		return null;
 	}
 
-	let finalContent: string;
-	let generatedCodeResult: { code: string; functionId: string };
+	// Initialize functionId - we'll need this for the RouteKeysMap even if no keys
 	let functionId: string;
+
+	let finalContent: string;
 
 	if (existsSync(serverFilePath)) {
 		if (verbose) {
@@ -542,7 +543,7 @@ export function injectTranslationKeys(
 
 		// Generate translations code, preserving existing functionId if available
 		const generatedCodeResult = generateTranslationsCode(existingContent);
-		const functionId = generatedCodeResult.functionId;
+		functionId = generatedCodeResult.functionId;
 
 		// Check if load function already exists
 		if (existingContent.includes('export const load')) {
@@ -585,7 +586,8 @@ export function injectTranslationKeys(
 				if (verbose) {
 					console.log(`⏭️  Skipping load function creation for ${serverFilePath} - no keys`);
 				}
-				return null;
+				// Still return the functionId for RouteKeysMap even if no keys
+				return functionId;
 			}
 
 			// Create new load function
@@ -607,12 +609,15 @@ export function injectTranslationKeys(
 			if (verbose) {
 				console.log(`⏭️  Skipping file creation for ${serverFilePath} - no keys`);
 			}
-			return null;
+			// Still need to generate a functionId for RouteKeysMap even if no keys
+			const generatedCodeResult = generateTranslationsCode();
+			functionId = generatedCodeResult.functionId;
+			return functionId;
 		}
 
 		// Generate translations code for new file
 		const generatedCodeResult = generateTranslationsCode();
-		const functionId = generatedCodeResult.functionId;
+		functionId = generatedCodeResult.functionId;
 
 		// Create new file
 		const loadFunctionConfig: LoadFunctionConfig = {

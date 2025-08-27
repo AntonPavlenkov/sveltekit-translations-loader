@@ -725,8 +725,8 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 		},
 
 		configureServer(server) {
-			// Setup file watcher for development
-			setupFileWatcher(server, defaultPath, state, processTranslationsFn, verbose);
+			if (state.viteConfig.command === 'development')
+				setupFileWatcher(server, defaultPath, state, processTranslationsFn, verbose);
 		},
 
 		resolveId(id: string) {
@@ -758,8 +758,10 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 				state.processingTimeout = null;
 			}
 
-			// Force flush any remaining file writes
-			await forceFlushFileWrites();
+			// Force flush any remaining file writes only during build
+			if (state.isBuildMode) {
+				await forceFlushFileWrites();
+			}
 		}
 	};
 }
