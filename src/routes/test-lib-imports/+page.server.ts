@@ -1,6 +1,6 @@
 // =============================================================================
 // AUTO-GENERATED CODE BY SVELTEKIT-TRANSLATIONS-LOADER PLUGIN
-import { _getTranslations } from '$lib/.translations/_generated/server/translations-injector';
+import { _getTranslations } from '$lib/@i18n/_generated/server/translations-injector';
 const _functionId = '9sxo3zbd679';
 // END AUTO-GENERATED CODE
 

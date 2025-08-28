@@ -4,7 +4,7 @@ import { queueFileWrite } from './batch-file-writer.js';
 
 // Constants
 const getTranslationsInjectorPath = (): string => {
-	const basePath = 'src/lib/.translations/_generated/server';
+	const basePath = 'src/lib/@i18n/_generated/server';
 	return `${basePath}/translations-injector.ts`;
 };
 

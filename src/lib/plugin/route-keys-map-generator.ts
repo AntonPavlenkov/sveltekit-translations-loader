@@ -5,7 +5,7 @@ import { hasContentChanged } from './shared-utils.js';
 
 // Constants
 const getRouteKeysMapPath = (): string => {
-	const basePath = 'src/lib/.translations/_generated/server';
+	const basePath = 'src/lib/@i18n/_generated/server';
 	return `${basePath}/route-keys-map.ts`;
 };
 

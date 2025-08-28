@@ -169,11 +169,11 @@ export * from '${resolve(indexPath)}';`;
 }
 
 /**
- * Generate runtime path - always use .translations directory
+ * Generate runtime path - always use @i18n directory
  */
 function generateRuntimePath(): string {
-	// Always generate in .translations directory regardless of defaultPath location
-	return join('src', 'lib', '.translations', '_generated', 'messages');
+	// Always generate in @i18n directory regardless of defaultPath location
+	return join('src', 'lib', '@i18n', '_generated', 'messages');
 }
 
 /**
@@ -222,14 +222,16 @@ function addToGitignore(messagesPath: string, verbose: boolean): void {
 		const lines = gitignoreContent.split('\n');
 
 		// Create the entry to add (with trailing slash to match directory)
-		const entryToAdd = messagesPath.replace(/\\/g, '/') + '/';
+		// Use the parent directory (_generated) instead of the full messages path
+		const parentDir = messagesPath.replace(/\\/g, '/').replace('/messages', '');
+		const entryToAdd = parentDir + '/';
 
 		// Check if the entry already exists (exact match or pattern match)
 		const entryExists = lines.some((line) => {
 			const trimmedLine = line.trim();
 			return (
 				trimmedLine === entryToAdd ||
-				trimmedLine === messagesPath.replace(/\\/g, '/') ||
+				trimmedLine === parentDir ||
 				trimmedLine.includes('_generated')
 			);
 		});
@@ -369,7 +371,7 @@ async function processTranslations(
 
 	// Only regenerate translation functions and types if translations changed
 	if (translationsChanged) {
-		// Generate runtime path - always use .translations directory
+		// Generate runtime path - always use @i18n directory
 		const runtimePath = generateRuntimePath();
 
 		// Generate base translation functions
@@ -479,7 +481,7 @@ function setupFileWatcher(
 							entry === '.nyc_output' ||
 							entry === '.vscode' ||
 							entry === '.idea' ||
-							(entry.startsWith('.') && entry !== '.translations')
+							(entry.startsWith('.') && entry !== '@i18n')
 						) {
 							continue;
 						}
@@ -532,7 +534,7 @@ function setupFileWatcher(
 									entry === '.nyc_output' ||
 									entry === '.vscode' ||
 									entry === '.idea' ||
-									(entry.startsWith('.') && entry !== '.translations')
+									(entry.startsWith('.') && entry !== '@i18n')
 								) {
 									continue;
 								}
@@ -739,7 +741,7 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 		load(id: string) {
 			if (id === VIRTUAL_MODULE_INTERNAL_ID) {
-				// Generate runtime path - always use .translations directory
+				// Generate runtime path - always use @i18n directory
 				const runtimePath = generateRuntimePath();
 				// Return the content that should be loaded for the virtual module
 				return generateVirtualModuleContent(runtimePath);
