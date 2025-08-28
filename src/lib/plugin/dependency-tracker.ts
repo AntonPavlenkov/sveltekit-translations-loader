@@ -37,11 +37,57 @@ const DYNAMIC_IMPORT_PATTERNS = [
 ] as const;
 
 /**
+ * Check if a path is safe to scan (not in node_modules or other system directories)
+ */
+function isSafeToScan(filePath: string): boolean {
+	// Resolve relative paths to absolute paths for proper checking
+	const resolvedPath = resolve(filePath);
+	const normalizedPath = resolvedPath.replace(/\\/g, '/');
+
+	// Never scan inside node_modules
+	if (normalizedPath.includes('/node_modules/') || normalizedPath.includes('\\node_modules\\')) {
+		return false;
+	}
+
+	// Never scan inside other system directories
+	if (
+		normalizedPath.includes('/.git/') ||
+		normalizedPath.includes('/.svelte-kit/') ||
+		normalizedPath.includes('/dist/') ||
+		normalizedPath.includes('/build/') ||
+		normalizedPath.includes('/coverage/') ||
+		normalizedPath.includes('/.nyc_output/') ||
+		normalizedPath.includes('/.vscode/') ||
+		normalizedPath.includes('/.idea/') ||
+		normalizedPath.includes('/.tmp/') ||
+		normalizedPath.includes('/.bak/')
+	) {
+		return false;
+	}
+
+	// Only allow scanning inside the project source directories
+	const projectRoot = process.cwd().replace(/\\/g, '/');
+	const srcDir = `${projectRoot}/src`;
+
+	// Allow scanning in src/ directory or test directories
+	if (!normalizedPath.startsWith(srcDir) && !normalizedPath.includes('/test-')) {
+		return false;
+	}
+
+	return true;
+}
+
+/**
  * Resolve import path relative to base path
  */
 function resolveImportPath(importPath: string, basePath: string): string {
 	if (importPath.startsWith('./') || importPath.startsWith('../')) {
 		const resolvedPath = resolve(dirname(basePath), importPath);
+
+		// Safety check: never scan inside node_modules or system directories
+		if (!isSafeToScan(resolvedPath)) {
+			return ''; // Return empty string to indicate unsafe path
+		}
 
 		// Check if the resolved path exists
 		if (existsSync(resolvedPath)) {
@@ -87,6 +133,11 @@ function resolveImportPath(importPath: string, basePath: string): string {
 	if (importPath.startsWith('/')) {
 		const resolvedPath = resolve(process.cwd(), importPath);
 
+		// Safety check: never scan inside node_modules or system directories
+		if (!isSafeToScan(resolvedPath)) {
+			return ''; // Return empty string to indicate unsafe path
+		}
+
 		// Check if the resolved path exists
 		if (existsSync(resolvedPath)) {
 			return resolvedPath;
@@ -117,7 +168,7 @@ function extractComponentImports(content: string, basePath: string): string[] {
 		while ((match = pattern.exec(content)) !== null) {
 			const importPath = match[2] || match[1];
 			const resolvedPath = resolveImportPath(importPath, basePath);
-			if (resolvedPath.endsWith('.svelte')) {
+			if (resolvedPath && resolvedPath !== '' && resolvedPath.endsWith('.svelte')) {
 				imports.add(resolvedPath);
 			}
 		}
@@ -129,7 +180,7 @@ function extractComponentImports(content: string, basePath: string): string[] {
 		while ((match = pattern.exec(content)) !== null) {
 			const importPath = match[1];
 			const resolvedPath = resolveImportPath(importPath, basePath);
-			if (resolvedPath.endsWith('.svelte')) {
+			if (resolvedPath && resolvedPath !== '' && resolvedPath.endsWith('.svelte')) {
 				imports.add(resolvedPath);
 			}
 		}
@@ -228,7 +279,7 @@ export function buildDependencyMap(routesDir: string, verbose = false): Dependen
 
 	if (existsSync(srcDir)) {
 		// Find all .svelte files in src that are not in routes
-		function scanSrcForComponents(dir: string) {
+		const scanSrcForComponents = (dir: string) => {
 			try {
 				const entries = readdirSync(dir);
 				for (const entry of entries) {
@@ -278,7 +329,7 @@ export function buildDependencyMap(routesDir: string, verbose = false): Dependen
 					console.log(`⚠️  Error scanning src directory ${dir}:`, error);
 				}
 			}
-		}
+		};
 
 		scanSrcForComponents(srcDir);
 	}
@@ -296,18 +347,18 @@ export function findComponentUsers(
 	const users = new Set<string>();
 	const visited = new Set<string>();
 
-	function findUsersRecursive(path: string) {
+	const findUsersRecursive = (path: string) => {
 		if (visited.has(path)) return;
 		visited.add(path);
 
 		const component = dependencyMap[path];
 		if (component) {
-			for (const user of component.usedBy) {
+			for (const user of Array.from(component.usedBy)) {
 				users.add(user);
 				findUsersRecursive(user);
 			}
 		}
-	}
+	};
 
 	findUsersRecursive(componentPath);
 	return users;
@@ -324,7 +375,7 @@ export function findPageComponent(
 ): string | null {
 	const visited = new Set<string>();
 
-	function findPageRecursive(path: string): string | null {
+	const findPageRecursive = (path: string): string | null => {
 		if (visited.has(path)) return null;
 		visited.add(path);
 
@@ -344,7 +395,7 @@ export function findPageComponent(
 		// Find users of this component
 		const component = dependencyMap[path];
 		if (component) {
-			for (const user of component.usedBy) {
+			for (const user of Array.from(component.usedBy)) {
 				const pageComponent = findPageRecursive(user);
 				if (pageComponent) {
 					return pageComponent;
@@ -353,7 +404,7 @@ export function findPageComponent(
 		}
 
 		return null;
-	}
+	};
 
 	return findPageRecursive(componentPath);
 }
@@ -386,7 +437,7 @@ export function findAffectedServerFiles(
 	const users = findComponentUsers(componentPath, dependencyMap);
 	const serverFiles = new Set<string>();
 
-	for (const userPath of users) {
+	for (const userPath of Array.from(users)) {
 		// Check if this is a page or layout file
 		const fileName = userPath.split('/').pop();
 		if (fileName === '+page.svelte' || fileName === '+layout.svelte') {
@@ -480,7 +531,7 @@ export async function handleComponentChange(
 	const users = findComponentUsers(changedFilePath, dependencyMap);
 	let hasIndirectUsage = false;
 
-	for (const user of users) {
+	for (const user of Array.from(users)) {
 		const userContent = readFileContentSilent(user);
 		if (userContent && hasTranslationUsage(userContent)) {
 			hasIndirectUsage = true;

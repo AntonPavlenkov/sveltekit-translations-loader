@@ -118,7 +118,7 @@ export class BatchFileWriter {
 		const promises: Promise<void>[] = [];
 		const retryWrites: PendingFileWrite[] = [];
 
-		for (const [dir, dirWrites] of directoryGroups) {
+		for (const [dir, dirWrites] of Array.from(directoryGroups)) {
 			// Ensure directory exists
 			try {
 				await mkdir(dir, { recursive: true });

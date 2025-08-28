@@ -1,9 +1,11 @@
 <script lang="ts">
-	import * as t from '@i18n';
+	import Component1 from '@variants/(test)/(test1)/Component1.svelte';
 
 	let { data } = $props();
 
 	console.log('🚀 ~ da  t   a :', data);
 </script>
 
-{t.zap()}
+<Component1 />
+// Test comment
+// Another test comment

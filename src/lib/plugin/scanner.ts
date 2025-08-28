@@ -11,6 +11,12 @@ export interface ViteConfig {
 	};
 }
 
+export interface SvelteKitConfig {
+	kit?: {
+		alias?: Record<string, string>;
+	};
+}
+
 // Constants
 const TRANSLATION_IMPORT_PATTERNS = [
 	/import\s+\{[^}]*\}\s+from\s+['"]@i18n['"]/g, // import { t } from '@i18n'
@@ -132,7 +138,12 @@ function resolveAlias(importPath: string): string {
 	// Resolve aliases
 	for (const [alias, replacement] of Object.entries(allAliases)) {
 		if (importPath.startsWith(alias)) {
-			return importPath.replace(alias, replacement);
+			const resolvedPath = importPath.replace(alias, replacement);
+			// If the replacement is a relative path, make it absolute from project root
+			if (resolvedPath.startsWith('./') || resolvedPath.startsWith('../')) {
+				return resolve(process.cwd(), resolvedPath);
+			}
+			return resolvedPath;
 		}
 	}
 
@@ -312,6 +323,47 @@ export function scanTranslationUsage(filePath: string): Set<string> {
 }
 
 /**
+ * Check if a path is safe to scan (not in node_modules or other system directories)
+ */
+function isSafeToScan(filePath: string): boolean {
+	// Resolve relative paths to absolute paths for proper checking
+	const resolvedPath = resolve(filePath);
+	const normalizedPath = resolvedPath.replace(/\\/g, '/');
+
+	// Never scan inside node_modules
+	if (normalizedPath.includes('/node_modules/') || normalizedPath.includes('\\node_modules\\')) {
+		return false;
+	}
+
+	// Never scan inside other system directories
+	if (
+		normalizedPath.includes('/.git/') ||
+		normalizedPath.includes('/.svelte-kit/') ||
+		normalizedPath.includes('/dist/') ||
+		normalizedPath.includes('/build/') ||
+		normalizedPath.includes('/coverage/') ||
+		normalizedPath.includes('/.nyc_output/') ||
+		normalizedPath.includes('/.vscode/') ||
+		normalizedPath.includes('/.idea/') ||
+		normalizedPath.includes('/.tmp/') ||
+		normalizedPath.includes('/.bak/')
+	) {
+		return false;
+	}
+
+	// Only allow scanning inside the project source directories
+	const projectRoot = process.cwd().replace(/\\/g, '/');
+	const srcDir = `${projectRoot}/src`;
+
+	// Allow scanning in src/ directory or test directories
+	if (!normalizedPath.startsWith(srcDir) && !normalizedPath.includes('/test-')) {
+		return false;
+	}
+
+	return true;
+}
+
+/**
  * Resolve import path
  */
 function resolveImportPath(importPath: string, basePath: string): string {
@@ -321,6 +373,11 @@ function resolveImportPath(importPath: string, basePath: string): string {
 	// Handle relative paths (./ and ../)
 	if (resolvedAlias.startsWith('./') || resolvedAlias.startsWith('../')) {
 		const resolvedPath = resolve(basePath, resolvedAlias);
+
+		// Safety check: never scan inside node_modules or system directories
+		if (!isSafeToScan(resolvedPath)) {
+			return ''; // Return empty string to indicate unsafe path
+		}
 
 		// Check if the resolved path exists
 		if (existsSync(resolvedPath)) {
@@ -367,6 +424,11 @@ function resolveImportPath(importPath: string, basePath: string): string {
 	else if (resolvedAlias.startsWith('src/')) {
 		const resolvedPath = resolve(process.cwd(), resolvedAlias);
 
+		// Safety check: never scan inside node_modules or system directories
+		if (!isSafeToScan(resolvedPath)) {
+			return ''; // Return empty string to indicate unsafe path
+		}
+
 		// Check if the resolved path exists
 		if (existsSync(resolvedPath)) {
 			return resolvedPath;
@@ -385,6 +447,11 @@ function resolveImportPath(importPath: string, basePath: string): string {
 	// Handle absolute paths from root
 	else if (resolvedAlias.startsWith('/')) {
 		const resolvedPath = resolve(process.cwd(), resolvedAlias);
+
+		// Safety check: never scan inside node_modules or system directories
+		if (!isSafeToScan(resolvedPath)) {
+			return ''; // Return empty string to indicate unsafe path
+		}
 
 		// Check if the resolved path exists
 		if (existsSync(resolvedPath)) {
@@ -426,8 +493,13 @@ function extractImportPaths(content: string, basePath: string): string[] {
 
 			const resolvedPath = resolveImportPath(importPath, basePath);
 
-			// Only include if file exists and it's a .svelte file
-			if (existsSync(resolvedPath) && resolvedPath.endsWith('.svelte')) {
+			// Only include if path is safe, file exists and it's a .svelte file
+			if (
+				resolvedPath &&
+				resolvedPath !== '' &&
+				existsSync(resolvedPath) &&
+				resolvedPath.endsWith('.svelte')
+			) {
 				imports.push(resolvedPath);
 			}
 		}
@@ -440,8 +512,13 @@ function extractImportPaths(content: string, basePath: string): string[] {
 			const importPath = match[1]; // First capture group is the path for dynamic imports
 			const resolvedPath = resolveImportPath(importPath, basePath);
 
-			// Only include if file exists and it's a .svelte file
-			if (existsSync(resolvedPath) && resolvedPath.endsWith('.svelte')) {
+			// Only include if path is safe, file exists and it's a .svelte file
+			if (
+				resolvedPath &&
+				resolvedPath !== '' &&
+				existsSync(resolvedPath) &&
+				resolvedPath.endsWith('.svelte')
+			) {
 				imports.push(resolvedPath);
 			}
 		}
@@ -454,6 +531,11 @@ function extractImportPaths(content: string, basePath: string): string[] {
  * Parse import statements from a .svelte file
  */
 export function parseImports(filePath: string): string[] {
+	// Safety check: never scan inside node_modules or system directories
+	if (!isSafeToScan(filePath)) {
+		return [];
+	}
+
 	const content = readFileContent(filePath);
 	if (!content) {
 		return [];
@@ -473,6 +555,14 @@ export function scanComponentTree(
 	maxDepth = 50 // Allow very deep nesting while preventing infinite loops
 ): Set<string> {
 	const allKeys = new Set<string>();
+
+	// Safety check: never scan inside node_modules or system directories
+	if (!isSafeToScan(filePath)) {
+		if (verbose) {
+			console.log(`🚫 Skipping unsafe path: ${filePath.replace(process.cwd(), '.')}`);
+		}
+		return allKeys;
+	}
 
 	// Avoid circular dependencies with better logic
 	if (visited.has(filePath)) {
@@ -712,7 +802,7 @@ function addKeysToChildRoutes(
 	usedKeys: Set<string>,
 	routeKeys: Map<string, Set<string>>
 ): void {
-	for (const [childRoute, childKeys] of routeKeys.entries()) {
+	for (const [childRoute, childKeys] of Array.from(routeKeys.entries())) {
 		if (childRoute !== routePath && childRoute.startsWith(routePath)) {
 			usedKeys.forEach((key) => childKeys.add(key));
 		}

@@ -223,7 +223,7 @@ function buildFileContent(
 	const { imports, customCode } = parsedContent;
 
 	// Merge and filter imports
-	const allImports = [...new Set([...imports, ...requiredImports])];
+	const allImports = Array.from(new Set([...Array.from(imports), ...Array.from(requiredImports)]));
 	const filteredImports = allImports.filter(
 		(importLine) => !importLine.includes('_getTranslations')
 	);

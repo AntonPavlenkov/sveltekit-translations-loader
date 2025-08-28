@@ -259,7 +259,7 @@ export function resolveTranslationKeys(
 	const resolvedKeys = new Set<string>();
 	const availableKeys = Object.keys(availableTranslations);
 
-	for (const usedKey of usedKeys) {
+	for (const usedKey of Array.from(usedKeys)) {
 		const matches = findKeyVariations(usedKey, availableKeys);
 		matches.forEach((match) => resolvedKeys.add(match));
 	}

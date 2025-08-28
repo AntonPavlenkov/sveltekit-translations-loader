@@ -8,7 +8,12 @@ import { handleComponentChange } from './dependency-tracker.js';
 import { generateTranslations } from './function-generator.js';
 import { resolveTranslationKeys, transformTranslationCode } from './helpers.js';
 import { injectTranslationKeys } from './load-function-updater.js';
-import { buildRouteHierarchy, findPageTranslationUsage, setViteConfig } from './scanner.js';
+import {
+	buildRouteHierarchy,
+	findPageTranslationUsage,
+	setSvelteKitConfig,
+	setViteConfig
+} from './scanner.js';
 
 import { generateTypeDeclarations } from './type-generator.js';
 // Constants
@@ -463,7 +468,7 @@ function setupFileWatcher(
 		server.watcher.add(routesDir);
 
 		// Recursively add all subdirectories, excluding node_modules and other system dirs
-		function addSubdirectories(dir: string) {
+		const addSubdirectories = (dir: string) => {
 			try {
 				const entries = readdirSync(dir);
 				for (const entry of entries) {
@@ -493,7 +498,7 @@ function setupFileWatcher(
 			} catch {
 				// Ignore errors for directories we can't read
 			}
-		}
+		};
 
 		addSubdirectories(routesDir);
 	}
@@ -503,53 +508,79 @@ function setupFileWatcher(
 	const srcDir = join(projectRoot, 'src');
 
 	if (existsSync(srcDir)) {
-		// Watch src/lib and src/components directories for shared components
-		const libDir = join(srcDir, 'lib');
-		const componentsDir = join(srcDir, 'components');
-		const variantsDir = join(srcDir, 'variants');
+		// Dynamically discover shared component directories based on SvelteKit config and common patterns
+		const sharedDirs: string[] = [];
 
-		[libDir, componentsDir, variantsDir].forEach((dir) => {
-			if (existsSync(dir)) {
-				server.watcher.add(dir);
-				if (verbose) {
-					console.log(`👁️  Watching shared components directory: ${dir}`);
-				}
+		// Always check common directories
+		const commonDirs = ['lib', 'components', 'variants', 'shared', 'ui', 'common'];
 
-				// Recursively add subdirectories, excluding node_modules and other system dirs
-				function addSharedSubdirectories(sharedDir: string) {
-					try {
-						const entries = readdirSync(sharedDir);
-						for (const entry of entries) {
-							const fullPath = join(sharedDir, entry);
-							const stat = statSync(fullPath);
-							if (stat.isDirectory()) {
-								// Skip system directories and node_modules
-								if (
-									entry === 'node_modules' ||
-									entry === '.git' ||
-									entry === '.svelte-kit' ||
-									entry === 'dist' ||
-									entry === 'build' ||
-									entry === 'coverage' ||
-									entry === '.nyc_output' ||
-									entry === '.vscode' ||
-									entry === '.idea' ||
-									(entry.startsWith('.') && entry !== '@i18n')
-								) {
-									continue;
-								}
+		// Add directories that exist
+		commonDirs.forEach((dirName) => {
+			const dirPath = join(srcDir, dirName);
+			if (existsSync(dirPath)) {
+				sharedDirs.push(dirPath);
+			}
+		});
 
-								server.watcher.add(fullPath);
-								addSharedSubdirectories(fullPath);
-							}
+		// Add directories from SvelteKit aliases that point to src/ subdirectories
+		const svelteKitConfig = loadSvelteKitConfig(verbose);
+		if (svelteKitConfig.kit?.alias) {
+			Object.entries(svelteKitConfig.kit.alias).forEach(([alias, path]) => {
+				// Check if the alias points to a src/ subdirectory
+				if (path.startsWith('./src/') || path.startsWith('src/')) {
+					const aliasPath = path.startsWith('./') ? path.slice(2) : path;
+					const fullPath = join(projectRoot, aliasPath);
+					if (existsSync(fullPath) && !sharedDirs.includes(fullPath)) {
+						sharedDirs.push(fullPath);
+						if (verbose) {
+							console.log(`👁️  Added alias directory: ${alias} -> ${fullPath}`);
 						}
-					} catch {
-						// Ignore errors for directories we can't read
 					}
 				}
+			});
+		}
 
-				addSharedSubdirectories(dir);
+		// Watch all discovered shared component directories
+		sharedDirs.forEach((dir) => {
+			server.watcher.add(dir);
+			if (verbose) {
+				console.log(`👁️  Watching shared components directory: ${dir}`);
 			}
+
+			// Recursively add subdirectories, excluding node_modules and other system dirs
+			const addSharedSubdirectories = (sharedDir: string) => {
+				try {
+					const entries = readdirSync(sharedDir);
+					for (const entry of entries) {
+						const fullPath = join(sharedDir, entry);
+						const stat = statSync(fullPath);
+						if (stat.isDirectory()) {
+							// Skip system directories and node_modules
+							if (
+								entry === 'node_modules' ||
+								entry === '.git' ||
+								entry === '.svelte-kit' ||
+								entry === 'dist' ||
+								entry === 'build' ||
+								entry === 'coverage' ||
+								entry === '.nyc_output' ||
+								entry === '.vscode' ||
+								entry === '.idea' ||
+								(entry.startsWith('.') && entry !== '@i18n')
+							) {
+								continue;
+							}
+
+							server.watcher.add(fullPath);
+							addSharedSubdirectories(fullPath);
+						}
+					}
+				} catch {
+					// Ignore errors for directories we can't read
+				}
+			};
+
+			addSharedSubdirectories(dir);
 		});
 	}
 
@@ -671,6 +702,45 @@ function setupFileWatcher(
 }
 
 /**
+ * Load SvelteKit config from the project
+ */
+function loadSvelteKitConfig(verbose = false): { kit?: { alias?: Record<string, string> } } {
+	try {
+		const svelteConfigPath = resolve('svelte.config.js');
+		if (existsSync(svelteConfigPath)) {
+			// Read and parse the svelte.config.js file
+			const configContent = readFileSync(svelteConfigPath, 'utf8');
+
+			// Handle both ES modules and CommonJS syntax
+			// Look for alias configuration in the config object
+			const aliasMatch = configContent.match(/alias:\s*\{([^}]+)\}/);
+			if (aliasMatch) {
+				const aliasContent = aliasMatch[1];
+				const aliases: Record<string, string> = {};
+
+				// Parse aliases like '@variants': './src/variants'
+				const aliasRegex = /['"]([^'"]+)['"]:\s*['"]([^'"]+)['"]/g;
+				let match;
+				while ((match = aliasRegex.exec(aliasContent)) !== null) {
+					aliases[match[1]] = match[2];
+				}
+
+				if (Object.keys(aliases).length > 0) {
+					if (verbose) {
+						console.log('🔧 Loaded SvelteKit aliases:', aliases);
+					}
+					return { kit: { alias: aliases } };
+				}
+			}
+		}
+	} catch (error) {
+		console.warn('Could not load SvelteKit config:', error);
+	}
+
+	return {};
+}
+
+/**
  * Main plugin function
  */
 export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
@@ -686,6 +756,16 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 		translationsHash: '',
 		viteConfig: { command: '', mode: '' } // Initialize viteConfig
 	};
+
+	// Load SvelteKit config immediately when plugin is created
+	const svelteKitConfig = loadSvelteKitConfig(verbose);
+	if (svelteKitConfig.kit?.alias) {
+		setSvelteKitConfig(svelteKitConfig);
+		// Only log if verbose is enabled
+		if (verbose) {
+			console.log('🔧 Plugin initialized with SvelteKit aliases:', svelteKitConfig.kit.alias);
+		}
+	}
 
 	// Create processTranslations function with current state
 	const processTranslationsFn = (forceUsageRescan = false) =>
@@ -713,6 +793,15 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 
 			// Set Vite config for alias resolution in scanner
 			setViteConfig(config);
+
+			// Automatically load and set SvelteKit config for alias resolution
+			const svelteKitConfig = loadSvelteKitConfig(verbose);
+			if (svelteKitConfig.kit?.alias) {
+				setSvelteKitConfig(svelteKitConfig);
+				if (verbose) {
+					console.log('🔧 Auto-configured SvelteKit aliases:', svelteKitConfig.kit.alias);
+				}
+			}
 
 			if (verbose) {
 				console.log(

@@ -3,10 +3,10 @@
 	import DeepNestedComponent from './DeepNestedComponent.svelte';
 </script>
 
-<div class="p-4 bg-white rounded border">
-	<h3 class="text-lg font-medium mb-3">Nested Translation Component</h3>
-	
-	<div class="space-y-2 mb-4">
+<div class="rounded border bg-white p-4">
+	<h3 class="mb-3 text-lg font-medium">Nested Translation Component</h3>
+
+	<div class="mb-4 space-y-2">
 		<p class="text-sm text-gray-700">
 			{t.pageContent()} - This component also has translation keys
 		</p>
