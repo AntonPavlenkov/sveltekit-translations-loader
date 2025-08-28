@@ -768,5 +768,30 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 	};
 }
 
+/**
+ * Set both Vite and SvelteKit configurations for comprehensive alias support
+ * This function should be called in your plugin setup to enable alias resolution
+ * from both vite.config.js and svelte.config.js
+ */
+export function setPluginConfigs(
+	viteConfig: {
+		alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
+		resolve?: {
+			alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
+		};
+	},
+	svelteKitConfig: { kit?: { alias?: Record<string, string> } }
+): void {
+	// Set Vite config for alias resolution
+	if (viteConfig?.alias || viteConfig?.resolve?.alias) {
+		setViteConfig(viteConfig);
+	}
+
+	// Set SvelteKit config for alias resolution
+	if (svelteKitConfig?.kit?.alias) {
+		setSvelteKitConfig(svelteKitConfig);
+	}
+}
+
 // Export transform function for use in server hooks
 export { transformTranslationCode };

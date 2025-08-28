@@ -33,7 +33,11 @@ const IMPORT_PATTERNS = [
 	/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import { Component } from './Component.svelte'
 	/import\s+\*\s+as\s+\w+\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import * as Components from './Component.svelte'
 	/import\s+(\w+)\s*,\s*\{([^}]+)\}\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import Component, { Other } from './Component.svelte'
-	/import\s+\{([^}]+)\}\s*,\s*(\w+)\s+from\s+['"]([^'"]+\.svelte)['"]/g // import { Component } from './Component.svelte'
+	/import\s+\{([^}]+)\}\s*,\s*(\w+)\s+from\s+['"]([^'"]+\.svelte)['"]/g, // import { Component } from './Component.svelte'
+	// Add patterns for @ prefixed aliases without .svelte extension
+	/import\s+(\w+)\s+from\s+['"](@[^'"]+)['"]/g, // import Component from '@alias'
+	/import\s+\{\s*([^}]+)\s*\}\s+from\s+['"](@[^'"]+)['"]/g, // import { Component } from '@alias'
+	/import\s+\*\s+as\s+\w+\s+from\s+['"](@[^'"]+)['"]/g // import * as Components from '@alias'
 ] as const;
 
 const DYNAMIC_IMPORT_PATTERNS = [
@@ -56,12 +60,20 @@ const ROUTE_FILES = {
 
 // Global variable to store Vite config for alias resolution
 let globalViteConfig: ViteConfig = {};
+let globalSvelteKitConfig: SvelteKitConfig = {};
 
 /**
  * Set Vite config for alias resolution
  */
 export function setViteConfig(config: ViteConfig): void {
 	globalViteConfig = config;
+}
+
+/**
+ * Set SvelteKit config for alias resolution
+ */
+export function setSvelteKitConfig(config: SvelteKitConfig): void {
+	globalSvelteKitConfig = config;
 }
 
 /**
@@ -88,27 +100,39 @@ function resolveAlias(importPath: string): string {
 	}
 
 	// Get aliases from Vite config
-	const aliases = globalViteConfig.alias || globalViteConfig.resolve?.alias;
-	if (!aliases) {
-		return importPath;
+	const viteAliases = globalViteConfig.alias || globalViteConfig.resolve?.alias;
+
+	// Get aliases from SvelteKit config
+	const svelteKitAliases = globalSvelteKitConfig.kit?.alias;
+
+	// Combine both alias sources
+	const allAliases: Record<string, string> = {};
+
+	// Add SvelteKit aliases first (they take precedence)
+	if (svelteKitAliases) {
+		Object.assign(allAliases, svelteKitAliases);
 	}
 
-	// Handle array format: [{ find: '@variants', replacement: 'src/variants' }]
-	if (Array.isArray(aliases)) {
-		for (const alias of aliases) {
-			if (typeof alias.find === 'string' && importPath.startsWith(alias.find)) {
-				return importPath.replace(alias.find, alias.replacement);
-			} else if (alias.find instanceof RegExp && alias.find.test(importPath)) {
-				return importPath.replace(alias.find, alias.replacement);
+	// Add Vite aliases
+	if (viteAliases) {
+		// Handle array format: [{ find: '@variants', replacement: 'src/variants' }]
+		if (Array.isArray(viteAliases)) {
+			for (const alias of viteAliases) {
+				if (typeof alias.find === 'string') {
+					allAliases[alias.find] = alias.replacement;
+				}
 			}
 		}
+		// Handle object format: { '@variants': 'src/variants' }
+		else if (typeof viteAliases === 'object') {
+			Object.assign(allAliases, viteAliases);
+		}
 	}
-	// Handle object format: { '@variants': 'src/variants' }
-	else if (typeof aliases === 'object') {
-		for (const [alias, replacement] of Object.entries(aliases)) {
-			if (importPath.startsWith(alias)) {
-				return importPath.replace(alias, replacement);
-			}
+
+	// Resolve aliases
+	for (const [alias, replacement] of Object.entries(allAliases)) {
+		if (importPath.startsWith(alias)) {
+			return importPath.replace(alias, replacement);
 		}
 	}
 
@@ -294,11 +318,88 @@ function resolveImportPath(importPath: string, basePath: string): string {
 	// First resolve any Vite aliases
 	const resolvedAlias = resolveAlias(importPath);
 
+	// Handle relative paths (./ and ../)
 	if (resolvedAlias.startsWith('./') || resolvedAlias.startsWith('../')) {
-		return resolve(basePath, resolvedAlias);
-	} else if (resolvedAlias.startsWith('src/')) {
-		// Handle resolved aliases that point to src/
-		return resolve(process.cwd(), resolvedAlias);
+		const resolvedPath = resolve(basePath, resolvedAlias);
+
+		// Check if the resolved path exists
+		if (existsSync(resolvedPath)) {
+			return resolvedPath;
+		}
+
+		// If not found, try with .svelte extension
+		const withExtension = resolvedPath.endsWith('.svelte')
+			? resolvedPath
+			: `${resolvedPath}.svelte`;
+		if (existsSync(withExtension)) {
+			return withExtension;
+		}
+
+		// If still not found, try resolving from src directory
+		const srcPath = resolve(process.cwd(), 'src', resolvedAlias);
+		if (existsSync(srcPath)) {
+			return srcPath;
+		}
+
+		// Try with .svelte extension from src
+		const srcWithExtension = srcPath.endsWith('.svelte') ? srcPath : `${srcPath}.svelte`;
+		if (existsSync(srcWithExtension)) {
+			return srcWithExtension;
+		}
+
+		// Try resolving from the base path's src directory
+		const baseSrcPath = resolve(dirname(basePath), 'src', resolvedAlias);
+		if (existsSync(baseSrcPath)) {
+			return baseSrcPath;
+		}
+
+		// Try with .svelte extension from base src
+		const baseSrcWithExtension = baseSrcPath.endsWith('.svelte')
+			? baseSrcPath
+			: `${baseSrcPath}.svelte`;
+		if (existsSync(baseSrcWithExtension)) {
+			return baseSrcWithExtension;
+		}
+
+		return resolvedPath; // Return original resolved path if all attempts fail
+	}
+	// Handle absolute paths from src/
+	else if (resolvedAlias.startsWith('src/')) {
+		const resolvedPath = resolve(process.cwd(), resolvedAlias);
+
+		// Check if the resolved path exists
+		if (existsSync(resolvedPath)) {
+			return resolvedPath;
+		}
+
+		// If not found, try with .svelte extension
+		const withExtension = resolvedPath.endsWith('.svelte')
+			? resolvedPath
+			: `${resolvedPath}.svelte`;
+		if (existsSync(withExtension)) {
+			return withExtension;
+		}
+
+		return resolvedPath;
+	}
+	// Handle absolute paths from root
+	else if (resolvedAlias.startsWith('/')) {
+		const resolvedPath = resolve(process.cwd(), resolvedAlias);
+
+		// Check if the resolved path exists
+		if (existsSync(resolvedPath)) {
+			return resolvedPath;
+		}
+
+		// If not found, try with .svelte extension
+		const withExtension = resolvedPath.endsWith('.svelte')
+			? resolvedPath
+			: `${resolvedPath}.svelte`;
+		if (existsSync(withExtension)) {
+			return withExtension;
+		}
+
+		return resolvedPath;
 	}
 
 	return resolvedAlias;
@@ -368,11 +469,12 @@ export function parseImports(filePath: string): string[] {
 export function scanComponentTree(
 	filePath: string,
 	visited = new Set<string>(),
-	verbose = false
+	verbose = false,
+	maxDepth = 50 // Allow very deep nesting while preventing infinite loops
 ): Set<string> {
 	const allKeys = new Set<string>();
 
-	// Avoid circular dependencies
+	// Avoid circular dependencies with better logic
 	if (visited.has(filePath)) {
 		if (verbose) {
 			console.log(
@@ -381,10 +483,23 @@ export function scanComponentTree(
 		}
 		return allKeys;
 	}
+
+	// Check depth to prevent infinite loops while allowing deep nesting
+	if (visited.size >= maxDepth) {
+		if (verbose) {
+			console.log(
+				`⚠️  Max depth (${maxDepth}) reached, stopping recursion for: ${filePath.replace(process.cwd(), '.')}`
+			);
+		}
+		return allKeys;
+	}
+
 	visited.add(filePath);
 
 	if (verbose) {
-		console.log(`🔍 Scanning component: ${filePath.replace(process.cwd(), '.')}`);
+		console.log(
+			`🔍 Scanning component (depth ${visited.size}): ${filePath.replace(process.cwd(), '.')}`
+		);
 	}
 
 	// Scan this component for translation usage
@@ -398,7 +513,7 @@ export function scanComponentTree(
 		);
 	}
 
-	// Parse and scan all imported components
+	// Parse and scan all imported components with improved error handling
 	const imports = parseImports(filePath);
 	if (verbose && imports.length > 0) {
 		console.log(
@@ -408,16 +523,36 @@ export function scanComponentTree(
 	}
 
 	for (const importPath of imports) {
-		if (verbose) {
-			console.log(`🔗 Following import: ${importPath.replace(process.cwd(), '.')}`);
+		// Verify the import path exists before scanning
+		if (!existsSync(importPath)) {
+			if (verbose) {
+				console.log(
+					`⚠️  Import path does not exist, skipping: ${importPath.replace(process.cwd(), '.')}`
+				);
+			}
+			continue;
 		}
-		const keysFromImport = scanComponentTree(importPath, visited, verbose);
-		keysFromImport.forEach((key) => allKeys.add(key));
+
+		if (verbose) {
+			console.log(
+				`🔗 Following import (depth ${visited.size}): ${importPath.replace(process.cwd(), '.')}`
+			);
+		}
+
+		try {
+			const keysFromImport = scanComponentTree(importPath, visited, verbose, maxDepth);
+			keysFromImport.forEach((key) => allKeys.add(key));
+		} catch (error) {
+			if (verbose) {
+				console.log(`❌ Error scanning import ${importPath.replace(process.cwd(), '.')}:`, error);
+			}
+			// Continue with other imports instead of failing completely
+		}
 	}
 
 	if (verbose) {
 		console.log(
-			`✅ Finished scanning ${filePath.replace(process.cwd(), '.')}, total keys: ${allKeys.size}`
+			`✅ Finished scanning ${filePath.replace(process.cwd(), '.')} (depth ${visited.size}), total keys: ${allKeys.size}`
 		);
 	}
 

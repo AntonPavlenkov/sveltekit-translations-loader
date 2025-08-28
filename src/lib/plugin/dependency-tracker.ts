@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'fs';
 import { basename, dirname, join, relative, resolve } from 'path';
 import { injectTranslationKeys } from './load-function-updater.js';
-import { scanComponentTree } from './scanner.js';
+import { scanComponentTree, setSvelteKitConfig } from './scanner.js';
 import { readFileContentSilent } from './shared-utils.js';
 
 // Types
@@ -12,6 +12,12 @@ export interface ComponentUsage {
 
 export interface DependencyMap {
 	[componentPath: string]: ComponentUsage;
+}
+
+export interface SvelteKitConfig {
+	kit?: {
+		alias?: Record<string, string>;
+	};
 }
 
 // Constants
@@ -35,10 +41,66 @@ const DYNAMIC_IMPORT_PATTERNS = [
  */
 function resolveImportPath(importPath: string, basePath: string): string {
 	if (importPath.startsWith('./') || importPath.startsWith('../')) {
-		return resolve(dirname(basePath), importPath);
+		const resolvedPath = resolve(dirname(basePath), importPath);
+
+		// Check if the resolved path exists
+		if (existsSync(resolvedPath)) {
+			return resolvedPath;
+		}
+
+		// If not found, try with .svelte extension
+		const withExtension = resolvedPath.endsWith('.svelte')
+			? resolvedPath
+			: `${resolvedPath}.svelte`;
+		if (existsSync(withExtension)) {
+			return withExtension;
+		}
+
+		// If still not found, try resolving from src directory
+		const srcPath = resolve(process.cwd(), 'src', importPath);
+		if (existsSync(srcPath)) {
+			return srcPath;
+		}
+
+		// Try with .svelte extension from src
+		const srcWithExtension = srcPath.endsWith('.svelte') ? srcPath : `${srcPath}.svelte`;
+		if (existsSync(srcWithExtension)) {
+			return srcWithExtension;
+		}
+
+		// Try resolving from the base path's src directory
+		const baseSrcPath = resolve(dirname(basePath), 'src', importPath);
+		if (existsSync(baseSrcPath)) {
+			return baseSrcPath;
+		}
+
+		// Try with .svelte extension from base src
+		const baseSrcWithExtension = baseSrcPath.endsWith('.svelte')
+			? baseSrcPath
+			: `${baseSrcPath}.svelte`;
+		if (existsSync(baseSrcWithExtension)) {
+			return baseSrcWithExtension;
+		}
+
+		return resolvedPath; // Return original resolved path if all attempts fail
 	}
 	if (importPath.startsWith('/')) {
-		return resolve(process.cwd(), importPath);
+		const resolvedPath = resolve(process.cwd(), importPath);
+
+		// Check if the resolved path exists
+		if (existsSync(resolvedPath)) {
+			return resolvedPath;
+		}
+
+		// If not found, try with .svelte extension
+		const withExtension = resolvedPath.endsWith('.svelte')
+			? resolvedPath
+			: `${resolvedPath}.svelte`;
+		if (existsSync(withExtension)) {
+			return withExtension;
+		}
+
+		return resolvedPath;
 	}
 	return importPath;
 }
@@ -438,4 +500,11 @@ export async function handleComponentChange(
 	} else if (verbose) {
 		console.log(`⏭️  Skipping ${basename(changedFilePath)} - no translation usage detected`);
 	}
+}
+
+/**
+ * Set SvelteKit config for alias resolution in dependency tracking
+ */
+export function setDependencyTrackerConfig(config: SvelteKitConfig): void {
+	setSvelteKitConfig(config);
 }
