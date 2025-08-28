@@ -326,7 +326,7 @@ async function processRouteHierarchy(
 /**
  * Process all translations and setup
  */
-async function processTranslations(
+export async function processTranslations(
 	state: PluginState,
 	defaultPath: string,
 	verbose: boolean,

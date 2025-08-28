@@ -50,6 +50,52 @@ A powerful, intelligent translation system for SvelteKit with automatic type gen
 npm install sveltekit-translations-loader
 ```
 
+## 🛠️ CLI Usage
+
+The package includes a CLI tool for generating translations and managing your translation files:
+
+```bash
+# Generate translations and inject keys into load functions
+npx sveltekit-translations-loader --generate
+
+# Generate with verbose output
+npx sveltekit-translations-loader --generate --verbose
+
+# Generate with custom default path
+npx sveltekit-translations-loader --generate --default-path=src/i18n/translations.ts
+
+# Show help
+npx sveltekit-translations-loader --help
+
+# Show version
+npx sveltekit-translations-loader --version
+```
+
+### CLI Options
+
+- `--generate`: Generate translation files and inject keys into load functions
+- `--verbose, -v`: Enable verbose output for detailed logging
+- `--no-auto-gitignore`: Disable automatic .gitignore updates
+- `--no-console-ninja-protection`: Disable Console Ninja protection
+- `--default-path=<path>`: Set custom default translations path
+- `--help, -h`: Show help message
+- `--version`: Show version information
+
+### CLI Configuration
+
+You can configure the CLI in your `package.json`:
+
+```json
+{
+	"sveltekit-translations-loader": {
+		"defaultPath": "src/types/default-translations.ts",
+		"verbose": false,
+		"autoGitignore": true,
+		"consoleNinjaProtection": true
+	}
+}
+```
+
 ## 🚀 Quick Start
 
 ### 1. Create Your Default Translations
