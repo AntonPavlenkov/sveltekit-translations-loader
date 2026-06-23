@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'fs';
 import { dirname, join, resolve } from 'path';
 import { getRoutePath, requiresSafeAccess } from './helpers.js';
+import { getNormalizedRoot, isInsideProjectRoot, resolveFromRoot } from './project-root.js';
 import { readFileContent } from './shared-utils.js';
 
 // Types
@@ -141,7 +142,7 @@ function resolveAlias(importPath: string): string {
 			const resolvedPath = importPath.replace(alias, replacement);
 			// If the replacement is a relative path, make it absolute from project root
 			if (resolvedPath.startsWith('./') || resolvedPath.startsWith('../')) {
-				return resolve(process.cwd(), resolvedPath);
+				return resolveFromRoot(resolvedPath);
 			}
 			return resolvedPath;
 		}
@@ -351,12 +352,20 @@ function isSafeToScan(filePath: string): boolean {
 		return false;
 	}
 
-	// Only allow scanning inside the project source directories
-	const projectRoot = process.cwd().replace(/\\/g, '/');
-	const srcDir = `${projectRoot}/src`;
+	// Hard boundary: never look outside the project root. This is what keeps the
+	// plugin from crawling into sibling packages in a monorepo.
+	if (!isInsideProjectRoot(resolvedPath)) {
+		return false;
+	}
 
-	// Allow scanning in src/ directory or test directories
-	if (!normalizedPath.startsWith(srcDir) && !normalizedPath.includes('/test-')) {
+	// Within the project root, only scan source files and top-level test fixtures.
+	const root = getNormalizedRoot();
+	const relativePath = normalizedPath.slice(root.length + 1);
+	if (
+		!relativePath.startsWith('src/') &&
+		relativePath !== 'src' &&
+		!relativePath.startsWith('test-')
+	) {
 		return false;
 	}
 
@@ -393,7 +402,7 @@ function resolveImportPath(importPath: string, basePath: string): string {
 		}
 
 		// If still not found, try resolving from src directory
-		const srcPath = resolve(process.cwd(), 'src', resolvedAlias);
+		const srcPath = resolveFromRoot('src', resolvedAlias);
 		if (existsSync(srcPath)) {
 			return srcPath;
 		}
@@ -422,7 +431,7 @@ function resolveImportPath(importPath: string, basePath: string): string {
 	}
 	// Handle absolute paths from src/
 	else if (resolvedAlias.startsWith('src/')) {
-		const resolvedPath = resolve(process.cwd(), resolvedAlias);
+		const resolvedPath = resolveFromRoot(resolvedAlias);
 
 		// Safety check: never scan inside node_modules or system directories
 		if (!isSafeToScan(resolvedPath)) {
@@ -446,7 +455,7 @@ function resolveImportPath(importPath: string, basePath: string): string {
 	}
 	// Handle absolute paths from root
 	else if (resolvedAlias.startsWith('/')) {
-		const resolvedPath = resolve(process.cwd(), resolvedAlias);
+		const resolvedPath = resolveFromRoot(resolvedAlias);
 
 		// Safety check: never scan inside node_modules or system directories
 		if (!isSafeToScan(resolvedPath)) {

@@ -201,8 +201,33 @@ interface PluginConfig {
 	 * @default true
 	 */
 	autoGitignore?: boolean;
+
+	/** Enable Console Ninja protection for safe file writes (@default true) */
+	consoleNinjaProtection?: boolean;
+
+	/**
+	 * Explicit project root the plugin is allowed to scan, watch, and write to.
+	 * Defaults to Vite's resolved `config.root`. Set this in monorepos where the
+	 * dev/build process is launched from a different working directory than the
+	 * SvelteKit app, to guarantee the plugin never crawls into sibling packages.
+	 */
+	root?: string;
+
+	/**
+	 * Shared component directories (relative to `<root>/src`) to scan and watch
+	 * in addition to `src/routes`. Anything resolving outside the project root is
+	 * ignored.
+	 * @default ['lib', 'components', 'variants', 'shared', 'ui', 'common']
+	 */
+	includeDirs?: string[];
 }
 ```
+
+> **Monorepo safety:** The plugin is strictly confined to a single project root
+> (Vite's `config.root`, or the explicit `root` option). It never scans, watches,
+> reads, or injects code into files outside that root — so sibling packages in a
+> monorepo are left untouched. If your dev/build runs from the repo root instead
+> of the app package, pass `root` explicitly to pin the boundary.
 
 ## 📁 Generated Files
 

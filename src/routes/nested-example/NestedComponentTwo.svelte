@@ -6,8 +6,8 @@
 <div>
 	<h3>Nested Component Two</h3>
 	<p>{t.hello()}</p>
-	<p>{t.welcome()}</p>
-	<p>{t.userCount({ count: 5 })}</p>
+	<p>{t.welcome('World')}</p>
+	<p>{t.userCount(5)}</p>
 
 	<DeepNestedComponent />
 </div>

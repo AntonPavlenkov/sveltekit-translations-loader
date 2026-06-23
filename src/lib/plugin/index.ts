@@ -1,6 +1,13 @@
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'fs';
 import { basename, join, resolve } from 'path';
-import type { Plugin } from 'vite';
+import { pathToFileURL } from 'url';
+import type { Plugin, ViteDevServer } from 'vite';
+import {
+	getProjectRoot,
+	isInsideProjectRoot,
+	resolveFromRoot,
+	setProjectRoot
+} from './project-root.js';
 
 // Import from separated modules
 import { forceFlushFileWrites, getGlobalBatchWriter } from './batch-file-writer.js';
@@ -25,6 +32,20 @@ const I18N_IMPORT_PATTERNS = ["import * as t from '@i18n'", 'import * as t from 
 const ROUTES_DIR = 'src/routes';
 const HELPERS_UTILS_PATH = 'src/lib/helpers/utils.ts';
 
+/**
+ * Shared component directories (relative to the project root) that the plugin
+ * scans/watches in addition to `src/routes`. Kept intentionally small and always
+ * confined to the project root so a monorepo's sibling packages are never touched.
+ */
+const DEFAULT_INCLUDE_DIRS = [
+	'lib',
+	'components',
+	'variants',
+	'shared',
+	'ui',
+	'common'
+] as const;
+
 // Debouncing constants
 const DEBOUNCE_DELAY = 100; // 100ms debounce delay for better responsiveness
 
@@ -43,6 +64,23 @@ export interface PluginConfig {
 	 * @default true
 	 */
 	consoleNinjaProtection?: boolean;
+	/**
+	 * Explicit project root the plugin is allowed to scan, watch, and write to.
+	 *
+	 * Defaults to Vite's resolved `config.root`. Set this in monorepos where the
+	 * dev/build process is launched from a different working directory than the
+	 * SvelteKit app, to guarantee the plugin never crawls into sibling packages.
+	 */
+	root?: string;
+	/**
+	 * Shared component directories (relative to the project root) to scan and
+	 * watch for translation usage, in addition to `src/routes`. Each entry is
+	 * resolved against `<root>/src`. Anything resolving outside the project root
+	 * is ignored.
+	 *
+	 * @default ['lib', 'components', 'variants', 'shared', 'ui', 'common']
+	 */
+	includeDirs?: string[];
 }
 
 interface PluginState {
@@ -58,6 +96,7 @@ interface PluginState {
 interface BuildConfig {
 	command: string;
 	mode: string;
+	root?: string;
 	alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
 	resolve?: {
 		alias?: Record<string, string> | Array<{ find: string | RegExp; replacement: string }>;
@@ -82,13 +121,14 @@ import { injectTranslationsInjector } from './translations-injector-generator.js
  * Load default translations from the specified path
  */
 async function loadDefaultTranslations(defaultPath: string): Promise<Record<string, string>> {
-	const translationsPath = resolve(defaultPath);
+	const translationsPath = resolveFromRoot(defaultPath);
 	try {
-		// Use dynamic import with timestamp for cache busting
-		const timestamp = Date.now();
-		const translationsModule = await import(
-			`file://${translationsPath}?t=${timestamp}&rand=${Math.random()}`
-		);
+		// Build a valid file:// URL (handles spaces/special chars and avoids
+		// Vite/Rolldown "invalid file URL" warnings) and bust the module cache.
+		const translationsUrl = pathToFileURL(translationsPath);
+		translationsUrl.searchParams.set('t', String(Date.now()));
+		translationsUrl.searchParams.set('rand', String(Math.random()));
+		const translationsModule = await import(/* @vite-ignore */ translationsUrl.href);
 
 		return translationsModule.default || translationsModule;
 	} catch (error) {
@@ -103,6 +143,12 @@ async function loadDefaultTranslations(defaultPath: string): Promise<Record<stri
 function shouldReprocessFile(file: string, defaultPath: string): boolean {
 	// Normalize path separators for cross-platform compatibility
 	const normalizedFile = file.replace(/\\/g, '/');
+
+	// Hard boundary: ignore anything outside the project root so changes in
+	// sibling packages of a monorepo never trigger reprocessing here.
+	if (!isInsideProjectRoot(file)) {
+		return false;
+	}
 
 	// Skip generated, temporary, system files, and node_modules to prevent loops
 	if (
@@ -167,10 +213,10 @@ function hasI18nUsage(code: string): boolean {
  * Generate virtual module content
  */
 function generateVirtualModuleContent(runtimePath: string): string {
-	const indexPath = join(runtimePath, 'index');
+	const indexPath = resolveFromRoot(runtimePath, 'index');
 	return `// Virtual module for @i18n
-import * as translations from '${resolve(indexPath)}';
-export * from '${resolve(indexPath)}';`;
+import * as translations from '${indexPath}';
+export * from '${indexPath}';`;
 }
 
 /**
@@ -212,7 +258,7 @@ function addToGitignore(messagesPath: string, verbose: boolean): void {
 		return;
 	}
 
-	const gitignorePath = resolve('.gitignore');
+	const gitignorePath = resolveFromRoot('.gitignore');
 
 	if (!existsSync(gitignorePath)) {
 		if (verbose) {
@@ -376,14 +422,16 @@ export async function processTranslations(
 
 	// Only regenerate translation functions and types if translations changed
 	if (translationsChanged) {
-		// Generate runtime path - always use @i18n directory
+		// Generate runtime path - always use @i18n directory (relative for display
+		// and .gitignore, absolute for actual filesystem writes anchored to root).
 		const runtimePath = generateRuntimePath();
+		const runtimeDirAbs = resolveFromRoot(runtimePath);
 
 		// Generate base translation functions
-		await generateTranslations(defaultPath, runtimePath, verbose, state.isDevelopment);
+		await generateTranslations(defaultPath, runtimeDirAbs, verbose, state.isDevelopment);
 
 		// Generate TypeScript declarations for the virtual module
-		await generateTypeDeclarations(defaultPath, verbose, runtimePath);
+		await generateTypeDeclarations(defaultPath, verbose, runtimeDirAbs);
 
 		// Automatically add to .gitignore if enabled
 		if (autoGitignore) {
@@ -395,7 +443,7 @@ export async function processTranslations(
 
 	// Always scan for translation usage and auto-inject into load functions
 	// This is needed when .svelte files change to use new keys
-	const routesDir = resolve(ROUTES_DIR);
+	const routesDir = resolveFromRoot(ROUTES_DIR);
 	const pageUsages = findPageTranslationUsage(routesDir, verbose);
 
 	if (verbose) {
@@ -452,17 +500,18 @@ function setupFileWatcher(
 	defaultPath: string,
 	state: PluginState,
 	processTranslationsFn: () => Promise<void>,
-	verbose: boolean
+	verbose: boolean,
+	includeDirs: string[]
 ): void {
 	// Watch the default translations file
-	const resolvedDefaultPath = resolve(defaultPath);
+	const resolvedDefaultPath = resolveFromRoot(defaultPath);
 	if (verbose) {
 		console.log(`👁️  Setting up file watcher for: ${resolvedDefaultPath}`);
 	}
 	server.watcher.add(resolvedDefaultPath);
 
 	// Watch the routes directory for .svelte file changes
-	const routesDir = resolve(ROUTES_DIR);
+	const routesDir = resolveFromRoot(ROUTES_DIR);
 	if (existsSync(routesDir)) {
 		// Add the routes directory and all its subdirectories recursively
 		server.watcher.add(routesDir);
@@ -504,20 +553,17 @@ function setupFileWatcher(
 	}
 
 	// Also watch for components outside routes that might be used by page components
-	const projectRoot = resolve(process.cwd());
+	const projectRoot = getProjectRoot();
 	const srcDir = join(projectRoot, 'src');
 
 	if (existsSync(srcDir)) {
 		// Dynamically discover shared component directories based on SvelteKit config and common patterns
 		const sharedDirs: string[] = [];
 
-		// Always check common directories
-		const commonDirs = ['lib', 'components', 'variants', 'shared', 'ui', 'common'];
-
-		// Add directories that exist
-		commonDirs.forEach((dirName) => {
+		// Add configured include directories that exist and stay inside the project root
+		includeDirs.forEach((dirName) => {
 			const dirPath = join(srcDir, dirName);
-			if (existsSync(dirPath)) {
+			if (existsSync(dirPath) && isInsideProjectRoot(dirPath)) {
 				sharedDirs.push(dirPath);
 			}
 		});
@@ -530,11 +576,18 @@ function setupFileWatcher(
 				if (path.startsWith('./src/') || path.startsWith('src/')) {
 					const aliasPath = path.startsWith('./') ? path.slice(2) : path;
 					const fullPath = join(projectRoot, aliasPath);
-					if (existsSync(fullPath) && !sharedDirs.includes(fullPath)) {
+					// Never watch a directory that resolves outside the project root.
+					if (
+						existsSync(fullPath) &&
+						isInsideProjectRoot(fullPath) &&
+						!sharedDirs.includes(fullPath)
+					) {
 						sharedDirs.push(fullPath);
 						if (verbose) {
 							console.log(`👁️  Added alias directory: ${alias} -> ${fullPath}`);
 						}
+					} else if (verbose && !isInsideProjectRoot(fullPath)) {
+						console.log(`🚫 Ignoring alias '${alias}' -> outside project root: ${fullPath}`);
 					}
 				}
 			});
@@ -706,7 +759,7 @@ function setupFileWatcher(
  */
 function loadSvelteKitConfig(verbose = false): { kit?: { alias?: Record<string, string> } } {
 	try {
-		const svelteConfigPath = resolve('svelte.config.js');
+		const svelteConfigPath = resolveFromRoot('svelte.config.js');
 		if (existsSync(svelteConfigPath)) {
 			// Read and parse the svelte.config.js file
 			const configContent = readFileSync(svelteConfigPath, 'utf8');
@@ -745,6 +798,13 @@ function loadSvelteKitConfig(verbose = false): { kit?: { alias?: Record<string, 
  */
 export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plugin {
 	const { defaultPath, verbose = false, autoGitignore = true } = options;
+	const includeDirs = options.includeDirs ?? [...DEFAULT_INCLUDE_DIRS];
+
+	// Anchor the plugin to an explicit root immediately if provided. Vite's
+	// resolved `config.root` overrides this later (authoritative).
+	if (options.root) {
+		setProjectRoot(options.root);
+	}
 
 	// Initialize plugin state
 	const state: PluginState = {
@@ -781,7 +841,11 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 	return {
 		name: 'sveltekit-translations-loader',
 
-		async config() {
+		async config(userConfig: { root?: string }) {
+			// Anchor to the project root as early as possible so the very first
+			// scan/generate pass stays inside this package (important in monorepos).
+			setProjectRoot(options.root ?? userConfig?.root ?? process.cwd());
+
 			// Ensure messages are generated before any other plugins try to resolve them
 			await processTranslationsFn();
 		},
@@ -790,6 +854,10 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 			// Detect if we're in production build mode
 			state.isBuildMode = config.command === 'build' && config.mode === 'production';
 			state.viteConfig = config; // Store Vite config
+
+			// Vite's resolved root is authoritative. Pin everything the plugin does
+			// to it so sibling packages in a monorepo are never touched.
+			setProjectRoot(options.root ?? config.root ?? process.cwd());
 
 			// Set Vite config for alias resolution in scanner
 			setViteConfig(config);
@@ -815,9 +883,10 @@ export function sveltekitTranslationsImporterPlugin(options: PluginConfig): Plug
 			await processTranslationsFn();
 		},
 
-		configureServer(server) {
-			if (state.viteConfig.command === 'development')
-				setupFileWatcher(server, defaultPath, state, processTranslationsFn, verbose);
+		configureServer(server: ViteDevServer) {
+			// `configureServer` only runs for the dev server (command === 'serve'),
+			// so the watcher is always wired up here for development.
+			setupFileWatcher(server, defaultPath, state, processTranslationsFn, verbose, includeDirs);
 		},
 
 		resolveId(id: string) {

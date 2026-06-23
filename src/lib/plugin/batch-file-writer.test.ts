@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmdirSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, rmSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -18,7 +18,7 @@ describe('BatchFileWriter', () => {
 		try {
 			if (existsSync(testFile1)) unlinkSync(testFile1);
 			if (existsSync(testFile2)) unlinkSync(testFile2);
-			if (existsSync(testDir)) rmdirSync(testDir);
+			if (existsSync(testDir)) rmSync(testDir, { recursive: true, force: true });
 		} catch {
 			// Ignore cleanup errors
 		}
@@ -29,7 +29,7 @@ describe('BatchFileWriter', () => {
 		try {
 			if (existsSync(testFile1)) unlinkSync(testFile1);
 			if (existsSync(testFile2)) unlinkSync(testFile2);
-			if (existsSync(testDir)) rmdirSync(testDir);
+			if (existsSync(testDir)) rmSync(testDir, { recursive: true, force: true });
 		} catch {
 			// Ignore cleanup errors
 		}

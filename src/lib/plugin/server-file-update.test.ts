@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -49,13 +49,16 @@ export default {
 				unlinkSync(join(routesDir, 'some-page', '[slug]', 'blog', '5.0', '+page.server.ts'));
 			}
 			if (existsSync(routesDir)) {
-				rmdirSync(join(routesDir, 'some-page', '[slug]', 'blog', '5.0'), { recursive: true });
+				rmSync(join(routesDir, 'some-page', '[slug]', 'blog', '5.0'), {
+					recursive: true,
+					force: true
+				});
 			}
 			if (existsSync(variantsDir)) {
-				rmdirSync(variantsDir);
+				rmSync(variantsDir, { recursive: true, force: true });
 			}
 			if (existsSync(testDir)) {
-				rmdirSync(testDir, { recursive: true });
+				rmSync(testDir, { recursive: true, force: true });
 			}
 		} catch {
 			// Ignore cleanup errors

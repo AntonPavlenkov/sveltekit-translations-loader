@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from 'fs';
-import { dirname, resolve } from 'path';
+import { dirname } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
+import { resolveFromRoot } from './project-root.js';
 
 // Constants
 const getTranslationsInjectorPath = (): string => {
@@ -31,19 +32,46 @@ export function _getTranslations(functionId: string) {
 	const routeKeys = RouteKeysMap.get(functionId) || [];
 	const isSentAlready = locals.translationsCookies[functionId] || false;
 
+	// Early return if no keys needed
+	if (routeKeys.length === 0) {
+		return (locals._translationsData = {
+			...(locals._translationsData || {}),
+			...(locals.extraKeys || {})
+		});
+	}
+
+	// Build Set of already seen keys for O(1) lookup
+	const seenKeys = new Set<string>();
+	const seenFunctionIds = Object.keys(locals.translationsCookies);
+	for (const seenFunctionId of seenFunctionIds) {
+		const keys = RouteKeysMap.get(seenFunctionId) || [];
+		for (const key of keys) {
+			seenKeys.add(key);
+		}
+	}
+
+	// Filter out already seen keys
+	const newKeys = routeKeys.filter((key) => !seenKeys.has(key));
+
 	const allTranslations = locals.translationsManager.getTranslations(locals.locale);
 	let newTranslationsData = {
 		...(locals._translationsData || {}),
 		...(locals.extraKeys || {})
 	};
-	if (!isSentAlready && locals.translationsManager.useCookie || !locals.translationsManager.useCookie) {
-		newTranslationsData = {
-			...routeKeys.reduce(
-				(acc, key) => ({ ...acc, [key]: allTranslations[key] || \`(\${key} missing)\` }),
-				{}
-			),
-			...newTranslationsData
-		};
+	if (
+		(!isSentAlready && locals.translationsManager.useCookie) ||
+		!locals.translationsManager.useCookie
+	) {
+		// Only process new keys that haven't been sent yet
+		if (newKeys.length > 0) {
+			newTranslationsData = {
+				...newKeys.reduce(
+					(acc, key) => ({ ...acc, [key]: allTranslations[key] || \`(\${key} missing)\` }),
+					{}
+				),
+				...newTranslationsData
+			};
+		}
 		if (locals.translationsManager.useCookie)
 			locals.translationsManager.setCookiesWithData(functionId);
 	}
@@ -59,7 +87,7 @@ export function _getTranslations(functionId: string) {
  * Update the translations injector file
  */
 function updateTranslationsInjectorFile(verbose: boolean = false): void {
-	const injectorPath = resolve(getTranslationsInjectorPath());
+	const injectorPath = resolveFromRoot(getTranslationsInjectorPath());
 	const newContent = generateTranslationsInjectorContent();
 
 	// Ensure the directory exists

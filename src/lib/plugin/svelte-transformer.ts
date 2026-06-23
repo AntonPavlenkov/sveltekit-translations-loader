@@ -1,7 +1,8 @@
 import { readdir, readFile, stat } from 'fs/promises';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
 import { requiresSafeAccess, sanitizeFunctionName } from './helpers.js';
+import { resolveFromRoot } from './project-root.js';
 
 // Constants
 const PARAMETER_REGEX = /{{([^}]+)}}/g;
@@ -364,7 +365,7 @@ async function findSvelteFiles(dir: string): Promise<string[]> {
  * Find all .svelte files that import from '@i18n'
  */
 async function findSvelteFilesWithI18nImports(): Promise<string[]> {
-	const files = await findSvelteFiles(resolve('src'));
+	const files = await findSvelteFiles(resolveFromRoot('src'));
 	const filesWithI18n: string[] = [];
 
 	for (const file of files) {

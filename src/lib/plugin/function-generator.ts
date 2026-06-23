@@ -1,7 +1,8 @@
 import { mkdir, rm } from 'fs/promises';
-import { join, resolve } from 'path';
+import { join } from 'path';
 import { forceFlushFileWrites, queueFileWrite, queueFileWrites } from './batch-file-writer.js';
 import { generateTypeScriptDeclarations, sanitizeFunctionName } from './helpers.js';
+import { resolveFromRoot } from './project-root.js';
 
 // Constants
 const AUTO_GENERATED_HEADER = [
@@ -37,7 +38,7 @@ interface GeneratedFile {
 export async function loadDefaultTranslations(
 	defaultPath: string
 ): Promise<Record<string, string>> {
-	const defaultTranslationsPath = resolve(defaultPath);
+	const defaultTranslationsPath = resolveFromRoot(defaultPath);
 	const defaultTranslationsModule = await import(defaultTranslationsPath);
 	return defaultTranslationsModule.default;
 }

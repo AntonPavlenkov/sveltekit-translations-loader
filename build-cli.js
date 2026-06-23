@@ -13,7 +13,7 @@ async function buildCLI() {
 			entryPoints: [resolve(__dirname, 'src/cli.ts')],
 			bundle: true,
 			platform: 'node',
-			target: 'node18',
+			target: 'node20',
 			format: 'esm',
 			outfile: resolve(__dirname, 'dist/cli.js'),
 			external: [

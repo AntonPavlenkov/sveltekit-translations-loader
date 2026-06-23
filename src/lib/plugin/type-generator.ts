@@ -2,6 +2,7 @@ import { basename, resolve } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
 import { loadDefaultTranslations } from './function-generator.js';
 import { extractParamsFromTranslation, sanitizeFunctionName } from './helpers.js';
+import { resolveFromRoot } from './project-root.js';
 
 // Constants
 const TYPE_DECLARATION_HEADER = [
@@ -175,7 +176,7 @@ function generateTypeScriptDeclarations(
  * Determine output directory and file path
  */
 function getOutputPath(runtimePath?: string): { outputDir: string; virtualModulePath: string } {
-	const outputDir = runtimePath ? runtimePath : resolve('src');
+	const outputDir = runtimePath ? runtimePath : resolveFromRoot('src');
 	const virtualModulePath = resolve(outputDir, 'sveltekit-translations-loader.d.ts');
 
 	return { outputDir, virtualModulePath };

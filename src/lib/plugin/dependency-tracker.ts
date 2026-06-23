@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, statSync } from 'fs';
 import { basename, dirname, join, relative, resolve } from 'path';
 import { injectTranslationKeys } from './load-function-updater.js';
+import { getNormalizedRoot, getProjectRoot, isInsideProjectRoot, resolveFromRoot } from './project-root.js';
 import { scanComponentTree, setSvelteKitConfig } from './scanner.js';
 import { readFileContentSilent } from './shared-utils.js';
 
@@ -65,12 +66,20 @@ function isSafeToScan(filePath: string): boolean {
 		return false;
 	}
 
-	// Only allow scanning inside the project source directories
-	const projectRoot = process.cwd().replace(/\\/g, '/');
-	const srcDir = `${projectRoot}/src`;
+	// Hard boundary: never look outside the project root. This is what keeps the
+	// plugin from crawling into sibling packages in a monorepo.
+	if (!isInsideProjectRoot(resolvedPath)) {
+		return false;
+	}
 
-	// Allow scanning in src/ directory or test directories
-	if (!normalizedPath.startsWith(srcDir) && !normalizedPath.includes('/test-')) {
+	// Within the project root, only scan source files and top-level test fixtures.
+	const root = getNormalizedRoot();
+	const relativePath = normalizedPath.slice(root.length + 1);
+	if (
+		!relativePath.startsWith('src/') &&
+		relativePath !== 'src' &&
+		!relativePath.startsWith('test-')
+	) {
 		return false;
 	}
 
@@ -103,7 +112,7 @@ function resolveImportPath(importPath: string, basePath: string): string {
 		}
 
 		// If still not found, try resolving from src directory
-		const srcPath = resolve(process.cwd(), 'src', importPath);
+		const srcPath = resolveFromRoot('src', importPath);
 		if (existsSync(srcPath)) {
 			return srcPath;
 		}
@@ -131,7 +140,7 @@ function resolveImportPath(importPath: string, basePath: string): string {
 		return resolvedPath; // Return original resolved path if all attempts fail
 	}
 	if (importPath.startsWith('/')) {
-		const resolvedPath = resolve(process.cwd(), importPath);
+		const resolvedPath = resolveFromRoot(importPath);
 
 		// Safety check: never scan inside node_modules or system directories
 		if (!isSafeToScan(resolvedPath)) {
@@ -274,7 +283,7 @@ export function buildDependencyMap(routesDir: string, verbose = false): Dependen
 	scanDirectory(routesPath);
 
 	// Then scan for components outside routes that are used by page components
-	const projectRoot = resolve(process.cwd());
+	const projectRoot = getProjectRoot();
 	const srcDir = join(projectRoot, 'src');
 
 	if (existsSync(srcDir)) {

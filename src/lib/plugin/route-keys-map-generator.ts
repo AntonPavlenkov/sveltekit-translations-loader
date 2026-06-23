@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'fs';
-import { dirname, resolve } from 'path';
+import { dirname } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
+import { resolveFromRoot } from './project-root.js';
 import { hasContentChanged } from './shared-utils.js';
 
 // Constants
@@ -101,7 +102,7 @@ export default RouteKeysMap;
  * Update the RouteKeysMap file
  */
 function updateRouteKeysMapFile(routeKeysMap: Map<string, string[]>, verbose: boolean): void {
-	const mapPath = resolve(getRouteKeysMapPath());
+	const mapPath = resolveFromRoot(getRouteKeysMapPath());
 	const newContent = generateRouteKeysMapContent(routeKeysMap);
 
 	// Check if content has actually changed before writing
@@ -152,7 +153,7 @@ export function injectRouteKeysMap(
 		console.log(`🔧 RouteKeysMap path: ${getRouteKeysMapPath()}`);
 	}
 
-	const mapPath = resolve(getRouteKeysMapPath());
+	const mapPath = resolveFromRoot(getRouteKeysMapPath());
 
 	// Parse existing RouteKeysMap from the file
 	const existingMap = parseExistingRouteKeysMap(mapPath);

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
-import { resolve } from 'path';
 import { queueFileWrite } from './batch-file-writer.js';
+import { resolveFromRoot } from './project-root.js';
 import { hasContentChanged } from './shared-utils.js';
 
 // Constants
@@ -162,7 +162,7 @@ function createLoadFunction(config: LoadFunctionConfig): string {
  */
 async function getPrettierConfig(): Promise<Record<string, unknown>> {
 	try {
-		const configPath = resolve(process.cwd(), '.prettierrc');
+		const configPath = resolveFromRoot('.prettierrc');
 		if (existsSync(configPath)) {
 			const configContent = readFileSync(configPath, 'utf8');
 			return JSON.parse(configContent);
@@ -322,7 +322,6 @@ function injectLoadedTranslations(loadFunctionCode: string): {
 	const lines = loadFunctionCode.split('\n');
 	let inLoadFunction = false;
 	let inReturnBlock = false;
-	let braceCount = 0;
 	let foundLoadFunction = false;
 	let foundReturnStatement = false;
 	const modifiedLines: string[] = [];
@@ -376,9 +375,8 @@ function injectLoadedTranslations(loadFunctionCode: string): {
 				trimmedLine === 'return' ||
 				trimmedLine.includes('return {'))
 		) {
-			inReturnBlock = true;
 			foundReturnStatement = true;
-			braceCount = 0;
+			let braceCount = 0;
 
 			// Check if the return object is empty
 			if (trimmedLine.includes('return {}') || trimmedLine.includes('return { }')) {

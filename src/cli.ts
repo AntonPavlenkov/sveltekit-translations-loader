@@ -306,7 +306,8 @@ async function executeGenerate(options: CLIOptions): Promise<void> {
 				}
 			} catch (localError) {
 				throw new Error(
-					`Failed to import plugin module from both published package and local path. Published package error: ${error instanceof Error ? error.message : 'Unknown error'}. Local path error: ${localError instanceof Error ? localError.message : 'Unknown error'}`
+					`Failed to import plugin module from both published package and local path. Published package error: ${error instanceof Error ? error.message : 'Unknown error'}. Local path error: ${localError instanceof Error ? localError.message : 'Unknown error'}`,
+					{ cause: localError }
 				);
 			}
 		}

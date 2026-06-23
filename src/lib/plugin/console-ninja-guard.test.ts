@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { BatchFileWriter } from './batch-file-writer.js';
@@ -95,7 +95,7 @@ describe('Console Ninja Guard Integration', () => {
 		// Clean up after tests
 		try {
 			if (existsSync(testFile)) unlinkSync(testFile);
-			if (existsSync(testDir)) rmdirSync(testDir);
+			if (existsSync(testDir)) rmSync(testDir, { recursive: true, force: true });
 		} catch {
 			// Ignore cleanup errors
 		}

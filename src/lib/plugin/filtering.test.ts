@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, rmdirSync, unlinkSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { sveltekitTranslationsImporterPlugin } from './index.js';
@@ -45,10 +45,10 @@ export default {
 				unlinkSync(join(routesDir, 'test-page', 'without-i18n.svelte'));
 			}
 			if (existsSync(routesDir)) {
-				rmdirSync(join(routesDir, 'test-page'));
+				rmSync(join(routesDir, 'test-page'), { recursive: true, force: true });
 			}
 			if (existsSync(testDir)) {
-				rmdirSync(testDir, { recursive: true });
+				rmSync(testDir, { recursive: true, force: true });
 			}
 		} catch {
 			// Ignore cleanup errors

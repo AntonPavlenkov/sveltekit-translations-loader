@@ -220,7 +220,10 @@ export class TranslationsManager {
 		});
 	};
 
-	private getCookiesWithData = (tabId: string | undefined, cookies: Cookies) => {
+	private getCookiesWithData = (
+		tabId: string | undefined,
+		cookies: Cookies
+	): Record<string, boolean> => {
 		if (!tabId) return {};
 		const cookieName = '_translations_cookies_' + tabId;
 		const cookie = cookies.get(cookieName);
@@ -236,14 +239,6 @@ export class TranslationsManager {
 			}
 		}
 		return {};
-	};
-
-	/**
-	 * Validate if a string is a valid UUID
-	 */
-	private isValidUUID = (str: string): boolean => {
-		const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-		return uuidRegex.test(str);
 	};
 
 	/**
